@@ -25,14 +25,19 @@ import json
 import logging
 import os
 import re
-import time
-from dataclasses import asdict, dataclass, field
-from datetime import datetime
 from typing import Dict, List, Optional
 
-import requests
 from bs4 import BeautifulSoup
 import urllib3
+
+try:
+    from ...models import RawRecord
+    from ...models.government_schemas import DAOPost
+    from .scraper_base import ScraperBase
+except ImportError:  # pragma: no cover
+    from nepali_corpus.core.models import RawRecord
+    from nepali_corpus.core.models.government_schemas import DAOPost
+    from nepali_corpus.core.services.scrapers.scraper_base import ScraperBase
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -40,23 +45,28 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class DAOPost:
-    """A post/notice from a District Administration Office."""
-    id: str
-    title: str
-    url: str
-    district: str
-    province: str
-    date_bs: Optional[str] = None
-    category: str = "notice"
-    has_attachment: bool = False
-    source: str = ""
-    source_name: str = ""
-    scraped_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+def post_to_raw(post: DAOPost) -> RawRecord:
+    scraped_at = post.scraped_at
+    if hasattr(scraped_at, "isoformat"):
+        scraped_at = scraped_at.isoformat()
+    return RawRecord(
+        source_id=post.source,
+        source_name=post.source_name,
+        url=post.url,
+        title=post.title,
+        language="ne" if "-ne" in post.category else "en",
+        date_bs=post.date_bs,
+        category=post.category,
+        province=post.province,
+        district=post.district,
+        fetched_at=scraped_at,
+        raw_meta={
+            "has_attachment": post.has_attachment,
+        },
+    )
 
 
-class DAOScraper:
+class DAOScraper(ScraperBase):
     """Scraper for Nepal's 77 District Administration Office websites."""
 
     # All 77 districts organized by province
@@ -169,28 +179,22 @@ class DAOScraper:
     }
 
     def __init__(self, delay: float = 0.5):
-        self.delay = delay
-        self.session = requests.Session()
+        super().__init__("", delay=delay, verify_ssl=False)
         self.session.headers.update({
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             "Accept-Language": "en-US,en;q=0.9,ne;q=0.8",
         })
-        self.session.verify = False
 
     @staticmethod
     def get_dao_url(district: str) -> str:
         return f"https://dao{district.lower()}.moha.gov.np"
 
     def _fetch(self, url: str) -> Optional[BeautifulSoup]:
-        try:
-            time.sleep(self.delay)
-            r = self.session.get(url, timeout=30)
-            r.raise_for_status()
-            return BeautifulSoup(r.text, "html.parser")
-        except Exception as e:
-            logger.error(f"Failed: {url}: {e}")
-            return None
+        soup = self.fetch_page(url)
+        if soup is None:
+            logger.error(f"Failed: {url}")
+        return soup
 
     def _parse_posts(self, soup: BeautifulSoup, district_key: str, category: str) -> List[DAOPost]:
         posts = []
@@ -314,6 +318,34 @@ class DAOScraper:
         return results
 
 
+def fetch_raw_records(
+    districts: Optional[List[str]] = None,
+    province: Optional[str] = None,
+    category: str = "notice-en",
+    pages: int = 2,
+) -> List[RawRecord]:
+    scraper = DAOScraper()
+    records: List[RawRecord] = []
+
+    if province:
+        results = scraper.scrape_by_province(province, [category], pages)
+        for posts in results.values():
+            records.extend(post_to_raw(p) for p in posts)
+        return records
+
+    if districts:
+        for dk in districts:
+            posts = scraper.scrape_district(dk, category, pages)
+            records.extend(post_to_raw(p) for p in posts)
+        return records
+
+    for dk in DAOScraper.PRIORITY_DISTRICTS:
+        posts = scraper.scrape_district(dk, category, pages)
+        records.extend(post_to_raw(p) for p in posts)
+
+    return records
+
+
 def main():
     parser = argparse.ArgumentParser(description="Scrape Nepal DAO (District Administration Office) websites")
     parser.add_argument("--district", "-d", help="Single district (e.g. kathmandu, kaski)")
@@ -382,7 +414,7 @@ def main():
         for dk, posts in all_posts.items():
             path = os.path.join(args.output, f"dao_{dk}.json")
             with open(path, "w", encoding="utf-8") as f:
-                json.dump([asdict(p) for p in posts], f, ensure_ascii=False, indent=2, default=str)
+                json.dump([p.model_dump(mode="json") for p in posts], f, ensure_ascii=False, indent=2, default=str)
         print(f"\nSaved to {args.output}/")
 
 

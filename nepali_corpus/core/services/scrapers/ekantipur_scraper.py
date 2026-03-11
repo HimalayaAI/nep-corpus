@@ -20,42 +20,46 @@ Requirements:
 
 import argparse
 import asyncio
-import hashlib
 import json
 import logging
 import os
 import re
-from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Dict, List, Optional
 
 import aiohttp
 from bs4 import BeautifulSoup
 
+try:
+    from ...models import RawRecord
+    from ...models.news_schemas import EkantipurArticle
+except ImportError:  # pragma: no cover
+    from nepali_corpus.core.models import RawRecord
+    from nepali_corpus.core.models.news_schemas import EkantipurArticle
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class Article:
-    """An Ekantipur news article."""
-    id: str
-    title: str
-    url: str
-    province: str
-    source_id: str
-    source_name: str
-    published_at: Optional[str] = None
-    image_url: Optional[str] = None
-    summary: Optional[str] = None
-    language: str = "ne"
-    scraped_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
-
-    def __post_init__(self):
-        if not self.id:
-            id_match = re.search(r"-(\d+)(?:\.html)?$", self.url)
-            self.id = f"ekantipur_{id_match.group(1)}" if id_match else \
-                       f"ekantipur_{hashlib.md5(self.url.encode()).hexdigest()[:12]}"
+def article_to_raw(article: EkantipurArticle) -> RawRecord:
+    scraped_at = article.scraped_at
+    if hasattr(scraped_at, "isoformat"):
+        scraped_at = scraped_at.isoformat()
+    return RawRecord(
+        source_id=article.source_id,
+        source_name=article.source_name,
+        url=article.url,
+        title=article.title,
+        summary=article.summary,
+        language=article.language,
+        published_at=article.published_at,
+        province=article.province,
+        fetched_at=scraped_at,
+        raw_meta={
+            "image_url": article.image_url,
+            "article_id": article.id,
+        },
+    )
 
 
 # Province page mappings
@@ -115,7 +119,7 @@ class EkantipurScraper:
                 logger.error(f"Error fetching {url}: {e}")
                 return None
 
-    def _parse(self, html: str, source_id: str, source_name: str, province_name: str) -> List[Article]:
+    def _parse(self, html: str, source_id: str, source_name: str, province_name: str) -> List[EkantipurArticle]:
         soup = BeautifulSoup(html, "lxml")
         articles, seen = [], set()
 
@@ -174,7 +178,7 @@ class EkantipurScraper:
             # Language detection
             has_nepali = any("\u0900" <= c <= "\u097F" for c in title)
 
-            articles.append(Article(
+            articles.append(EkantipurArticle(
                 id="", title=title, url=url, province=province_name,
                 source_id=source_id, source_name=source_name,
                 published_at=published_at, image_url=image_url,
@@ -184,7 +188,7 @@ class EkantipurScraper:
         logger.info(f"Parsed {len(articles)} articles from {source_name}")
         return articles
 
-    async def scrape_province(self, province_key: str, max_articles: int = 50) -> List[Article]:
+    async def scrape_province(self, province_key: str, max_articles: int = 50) -> List[EkantipurArticle]:
         if province_key not in PROVINCES:
             raise ValueError(f"Unknown province: {province_key}. Valid: {list(PROVINCES.keys())}")
         info = PROVINCES[province_key]
@@ -204,7 +208,7 @@ class EkantipurScraper:
                 unique.append(a)
         return unique[:max_articles]
 
-    async def scrape_national(self, max_articles: int = 50) -> List[Article]:
+    async def scrape_national(self, max_articles: int = 50) -> List[EkantipurArticle]:
         html = await self._fetch(BASE_URL)
         if not html:
             return []
@@ -216,7 +220,7 @@ class EkantipurScraper:
                 unique.append(a)
         return unique[:max_articles]
 
-    async def scrape_all(self, max_per_province: int = 30) -> Dict[str, List[Article]]:
+    async def scrape_all(self, max_per_province: int = 30) -> Dict[str, List[EkantipurArticle]]:
         results = {}
         # National
         results["national"] = await self.scrape_national(max_per_province)
@@ -259,7 +263,7 @@ async def run(args):
         if args.format == "jsonl":
             with open(args.output, "w", encoding="utf-8") as f:
                 for a in all_articles:
-                    f.write(json.dumps(asdict(a), ensure_ascii=False, default=str) + "\n")
+                    f.write(json.dumps(a.model_dump(mode="json"), ensure_ascii=False, default=str) + "\n")
             print(f"Saved to {args.output}")
         else:
             if args.output.endswith("/") or os.path.isdir(args.output):
@@ -270,11 +274,11 @@ async def run(args):
                 for sid, arts in by_prov.items():
                     path = os.path.join(args.output, f"{sid}.json")
                     with open(path, "w", encoding="utf-8") as f:
-                        json.dump([asdict(a) for a in arts], f, ensure_ascii=False, indent=2, default=str)
+                        json.dump([a.model_dump(mode="json") for a in arts], f, ensure_ascii=False, indent=2, default=str)
                     print(f"  {sid}: {len(arts)} → {path}")
             else:
                 with open(args.output, "w", encoding="utf-8") as f:
-                    json.dump([asdict(a) for a in all_articles], f, ensure_ascii=False, indent=2, default=str)
+                    json.dump([a.model_dump(mode="json") for a in all_articles], f, ensure_ascii=False, indent=2, default=str)
                 print(f"Saved to {args.output}")
 
 
@@ -294,6 +298,23 @@ def main():
         return
 
     asyncio.run(run(args))
+
+
+def fetch_raw_records(province: Optional[str] = None, national: bool = False) -> List[RawRecord]:
+    async def _fetch() -> List[RawRecord]:
+        async with EkantipurScraper() as scraper:
+            articles: List[EkantipurArticle] = []
+            if province:
+                articles = await scraper.scrape_province(province, max_articles=50)
+            elif national:
+                articles = await scraper.scrape_national(max_articles=50)
+            else:
+                results = await scraper.scrape_all(max_per_province=30)
+                for group in results.values():
+                    articles.extend(group)
+            return [article_to_raw(a) for a in articles]
+
+    return asyncio.run(_fetch())
 
 
 if __name__ == "__main__":

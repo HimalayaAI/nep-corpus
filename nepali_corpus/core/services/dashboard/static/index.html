@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nepali Corpus Dashboard</title>
+    <!-- Fonts for the professional Dataset Viewer -->
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Roboto+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.1/plotly.min.js"></script>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+
+<body>
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="brand">
+                <div class="brand-logo">NP</div>
+                <div class="brand-text">
+                    <strong>Nepali Corpus</strong>
+                    <span>LLM Dataset Builder</span>
+                </div>
+            </div>
+
+            <nav class="nav">
+                <a class="nav-item active" data-page="dashboard" href="#">
+                    <span class="nav-dot"></span>
+                    <span>Dashboard</span>
+                </a>
+                <a class="nav-item" data-page="sources" href="#">
+                    <span class="nav-dot"></span>
+                    <span>Sources</span>
+                    <span class="nav-count" id="sourceCount">0</span>
+                </a>
+                <a class="nav-item" data-page="data" href="#">
+                    <span class="nav-dot"></span>
+                    <span>Dataset Viewer</span>
+                </a>
+                <div class="nav-spacer"></div>
+                <a class="nav-item" data-page="scraper" href="#">
+                    <span class="nav-dot live"></span>
+                    <span>Scraper Logs</span>
+                </a>
+                <div class="nav-status" id="globalStatus">
+                    <span class="status-dot idle"></span>
+                    <span>Idle</span>
+                </div>
+            </nav>
+        </aside>
+
+        <main class="content">
+            <section class="page active" id="page-dashboard">
+                <header class="page-header">
+                    <div>
+                        <h1>Overview</h1>
+                        <p>Real-time crawler metrics and pipeline throughput</p>
+                    </div>
+                </header>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">URLs Crawled</div>
+                        <div class="stat-value" id="stat-crawled">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Documents Saved</div>
+                        <div class="stat-value" id="stat-saved">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">PDFs Extracted</div>
+                        <div class="stat-value" id="stat-pdf">0</div>
+                    </div>
+                    <div class="stat-card danger">
+                        <div class="stat-label">Failures</div>
+                        <div class="stat-value" id="stat-failed">0</div>
+                    </div>
+                </div>
+
+                <div class="dashboard-grid">
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3>Live Controls</h3>
+                            <div class="scraper-badge" id="scraper-status">Idle</div>
+                        </div>
+                        <div class="scraper-controls">
+                            <div class="input-group">
+                                <label>Parallel Workers</label>
+                                <input type="number" id="workers" value="8" min="1" max="64">
+                            </div>
+                            <div class="input-group">
+                                <label>Max Pages (per source)</label>
+                                <input type="number" id="max-pages" value="0" placeholder="Unbound">
+                            </div>
+                            <div class="input-group full">
+                                <label>Categories</label>
+                                <div class="checkbox-list" id="category-checks">
+                                    <label><input type="checkbox" value="govt" checked> Government</label>
+                                    <label><input type="checkbox" value="news" checked> News</label>
+                                    <label><input type="checkbox" value="social" checked> Social</label>
+                                </div>
+                            </div>
+                            <div class="input-group">
+                                <label><input type="checkbox" id="pdf-enabled" checked> Enable PDF Extraction</label>
+                            </div>
+                            <div class="input-group">
+                                <label><input type="checkbox" id="gzip-output"> Compress Output (.gz)</label>
+                            </div>
+                            <div class="button-row">
+                                <button class="primary" id="btn-start">Start Pipeline</button>
+                                <button class="ghost" id="btn-pause">Pause</button>
+                                <button class="danger" id="btn-stop">Stop All</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel">
+                        <div class="panel-header">
+                            <h3>Throughput</h3>
+                        </div>
+                        <div class="throughput-stats">
+                            <div class="tp-stat">
+                                <strong id="stat-speed">0</strong>
+                                <span>pages/s</span>
+                            </div>
+                            <div class="tp-stat">
+                                <strong id="stat-elapsed">00:00:00</strong>
+                                <span>elapsed</span>
+                            </div>
+                        </div>
+                        <div class="active-task-list">
+                            <label>Currently Processing</label>
+                            <div id="active-sources" class="task-items">
+                                <div class="empty-state-mini">No active crawls</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="panel panel-log">
+                        <div class="panel-header">
+                            <h3>Recent Errors</h3>
+                        </div>
+                        <div id="error-box" class="error-log">
+                            <div class="empty-state-mini">All quiet</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="page" id="page-scraper">
+                <header class="page-header">
+                    <div>
+                        <h1>Live Pipeline</h1>
+                        <p>Streaming logs and execution flow</p>
+                    </div>
+                    <div class="header-actions">
+                        <label class="auto-scroll">
+                            <input type="checkbox" id="autoscroll" checked> Auto-scroll
+                        </label>
+                        <button class="ghost" id="clearLogs">Clear Log</button>
+                    </div>
+                </header>
+                <div class="panel full-height">
+                    <div id="logBox" class="terminal-box"></div>
+                </div>
+            </section>
+
+            <section class="page" id="page-sources">
+                <header class="page-header">
+                    <div>
+                        <h1>Data Sources</h1>
+                        <p>All seed URLs and their crawl status</p>
+                    </div>
+                </header>
+
+                <section class="toolbar">
+                    <label class="search">
+                        <span class="search-icon"></span>
+                        <input id="searchInput" type="search" placeholder="Search sources...">
+                    </label>
+                    <div class="filters" id="filterChips">
+                        <button class="chip active" data-filter="all">All</button>
+                        <button class="chip" data-filter="Gov">Gov</button>
+                        <button class="chip" data-filter="News">News</button>
+                        <button class="chip" data-filter="Social">Social</button>
+                        <div class="filter-divider"></div>
+                        <button class="chip outline" id="btn-only-scraped">Show Scraped Only</button>
+                    </div>
+                </section>
+
+                <section class="grid" id="sourceGrid"></section>
+                <div class="empty-state" id="emptyState">
+                    <h3>No sources found</h3>
+                    <p>Try a different filter or search query.</p>
+                </div>
+            </section>
+
+            <section class="page" id="page-data">
+                <header class="page-header">
+                    <div>
+                        <h1>Dataset Viewer</h1>
+                        <p>Browse ingested database entries with a high-performance explorer</p>
+                    </div>
+                </header>
+
+                <!-- Dataset Viewer Structure matching reference project -->
+                <div class="viewer-wrapper">
+                    <div class="viewer-controls">
+                        <div class="control">
+                            <label>Actions</label>
+                            <div class="button-row">
+                                <button id="tableRefresh" title="Refresh DB">↺</button>
+                                <button id="prevPage" title="Previous">←</button>
+                                <span class="page-info" id="pageInfo">1 / 1</span>
+                                <button id="nextPage" title="Next">→</button>
+                            </div>
+                        </div>
+                        <div class="control">
+                            <label>Size</label>
+                            <input id="pageSizeInput" type="number" min="1" max="1000" value="100">
+                        </div>
+                        <div class="control grow">
+                            <label>Search</label>
+                            <input id="dataSearchInput" type="text" placeholder="Search across columns...">
+                        </div>
+                        <div class="control">
+                            <label>Tables</label>
+                            <select id="tableSelect"></select>
+                        </div>
+                        <div class="control">
+                            <label>View</label>
+                            <select id="viewSelect">
+                                <option value="table">Table</option>
+                                <option value="chart">Chart</option>
+                            </select>
+                        </div>
+                        <div class="control">
+                            <label>X-Axis</label>
+                            <select id="xColumnSelect"></select>
+                        </div>
+                        <div class="control">
+                            <label>Y-Axis</label>
+                            <select id="yColumnSelect"></select>
+                        </div>
+                    </div>
+
+                    <div class="chart-container" id="chartContainer">
+                        <div id="dataChart"></div>
+                    </div>
+
+                    <div class="table-container">
+                        <table class="data-table" id="dataTable">
+                            <thead id="tableHead"></thead>
+                            <tbody id="tableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal for Detailed Entry Viewing -->
+    <div id="detailModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="modalTitle">Entry Details</div>
+                <button class="modal-close" id="modalClose">×</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+
+</html>

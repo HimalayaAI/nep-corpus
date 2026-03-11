@@ -24,13 +24,19 @@ import logging
 import os
 import re
 import time
-from dataclasses import asdict, dataclass, field
-from datetime import datetime
 from typing import Dict, List, Optional
 
-import requests
 from bs4 import BeautifulSoup
 import urllib3
+
+try:
+    from ...models import RawRecord
+    from ...models.government_schemas import GovtPost, MinistryConfig, RegistryEntry
+    from .scraper_base import ScraperBase
+except ImportError:  # pragma: no cover
+    from nepali_corpus.core.models import RawRecord
+    from nepali_corpus.core.models.government_schemas import GovtPost, MinistryConfig, RegistryEntry
+    from nepali_corpus.core.services.scrapers.scraper_base import ScraperBase
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -38,39 +44,28 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class GovtPost:
-    """A single government post (press release, notice, news, etc.)."""
-    id: str
-    title: str
-    url: str
-    source_id: str
-    source_name: str
-    source_domain: str
-    date_bs: Optional[str] = None       # Bikram Sambat date (e.g. "2081-09-15")
-    date_ad: Optional[datetime] = None
-    category: str = "press-release"
-    language: str = "en"
-    has_attachment: bool = False
-    attachment_urls: List[str] = field(default_factory=list)
-    content_snippet: Optional[str] = None
-    scraped_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+def post_to_raw(post: GovtPost) -> RawRecord:
+    scraped_at = post.scraped_at
+    if hasattr(scraped_at, "isoformat"):
+        scraped_at = scraped_at.isoformat()
+    return RawRecord(
+        source_id=post.source_id,
+        source_name=post.source_name,
+        url=post.url,
+        title=post.title,
+        language=post.language,
+        published_at=post.date_ad.isoformat() if post.date_ad else None,
+        date_bs=post.date_bs,
+        category=post.category,
+        fetched_at=scraped_at,
+        raw_meta={
+            "has_attachment": post.has_attachment,
+            "attachment_urls": post.attachment_urls,
+        },
+    )
 
 
-@dataclass
-class MinistryConfig:
-    """Configuration for a ministry scraper."""
-    source_id: str
-    name: str
-    name_ne: str
-    base_url: str
-    endpoints: Dict[str, str]           # e.g. {"press_release": "/category/press-release/"}
-    page_structure: str = "category"    # category | table | list | card
-    priority: int = 2
-    poll_interval_mins: int = 60
-
-
-class GovtScraper:
+class MinistryScraper(ScraperBase):
     """
     Generic scraper for Nepal government ministry websites.
 
@@ -86,24 +81,20 @@ class GovtScraper:
 
     def __init__(self, config: MinistryConfig, delay: float = 0.5):
         self.config = config
-        self.delay = delay
-        self.session = requests.Session()
-        self.session.headers.update({
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            "Accept-Language": "en-US,en;q=0.9,ne;q=0.8",
-        })
-        self.session.verify = False  # Nepal govt sites have SSL issues
+        super().__init__(config.base_url, delay=delay, verify_ssl=False)
+        self.session.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "Accept-Language": "en-US,en;q=0.9,ne;q=0.8",
+            }
+        )
 
     def _fetch_page(self, url: str) -> Optional[BeautifulSoup]:
-        try:
-            time.sleep(self.delay)
-            response = self.session.get(url, timeout=30)
-            response.raise_for_status()
-            return BeautifulSoup(response.text, "html.parser")
-        except Exception as e:
-            logger.error(f"Failed to fetch {url}: {e}")
-            return None
+        soup = super().fetch_page(url)
+        if soup is None:
+            logger.error(f"Failed to fetch {url}")
+        return soup
 
     def _convert_nepali_digits(self, text: str) -> str:
         return text.translate(self.NEPALI_DIGITS)
@@ -389,11 +380,92 @@ MINISTRIES = {
 }
 
 
-def get_scraper(ministry_id: str) -> GovtScraper:
+def get_scraper(ministry_id: str) -> MinistryScraper:
     """Get a configured scraper for a ministry."""
     if ministry_id not in MINISTRIES:
         raise ValueError(f"Unknown ministry: {ministry_id}. Available: {list(MINISTRIES.keys())}")
-    return GovtScraper(MINISTRIES[ministry_id])
+    return MinistryScraper(MINISTRIES[ministry_id])
+
+
+def fetch_raw_records(
+    ministry_ids: Optional[List[str]] = None,
+    pages: int = 3,
+    registry_configs: Optional[Dict[str, MinistryConfig]] = None,
+    allow_default: bool = True,
+) -> List[RawRecord]:
+    if registry_configs is None:
+        if not allow_default:
+            return []
+        configs = MINISTRIES
+    else:
+        configs = registry_configs
+    if not configs:
+        return []
+    targets = list(configs.keys()) if ministry_ids is None else list(ministry_ids)
+
+    records: List[RawRecord] = []
+    for ministry_id in targets:
+        if ministry_id not in configs:
+            raise ValueError(f"Unknown ministry: {ministry_id}")
+        scraper = MinistryScraper(configs[ministry_id])
+        results = scraper.scrape_all(max_pages_per_endpoint=pages)
+        for posts in results.values():
+            records.extend(post_to_raw(p) for p in posts)
+    return records
+
+
+def fetch_registry_records(
+    entries: Optional[List[RegistryEntry]],
+    pages: int = 3,
+    allow_default: bool = True,
+) -> List[RawRecord]:
+    if not entries:
+        if allow_default:
+            return fetch_raw_records(pages=pages)
+        return []
+
+    ministry_configs: Dict[str, MinistryConfig] = {}
+    regulatory_entries: List[RegistryEntry] = []
+    other_entries: List[RegistryEntry] = []
+
+    for entry in entries:
+        if entry.scraper_class == "ministry_generic":
+            if entry.source_id and entry.base_url:
+                ministry_configs[entry.source_id] = MinistryConfig(
+                    source_id=entry.source_id,
+                    name=entry.name or entry.source_id,
+                    name_ne=entry.name_ne or entry.source_id,
+                    base_url=entry.base_url,
+                    endpoints=entry.endpoints,
+                    priority=entry.priority,
+                )
+        elif entry.scraper_class == "regulatory":
+            regulatory_entries.append(entry)
+        else:
+            other_entries.append(entry)
+
+    records: List[RawRecord] = []
+    if ministry_configs:
+        records.extend(
+            fetch_raw_records(
+                registry_configs=ministry_configs,
+                pages=pages,
+                allow_default=False,
+            )
+        )
+
+    if regulatory_entries:
+        from .regulatory_scraper import fetch_raw_records as fetch_regulatory
+        records.extend(fetch_regulatory(regulatory_entries, pages=max(1, pages)))
+
+    if other_entries:
+        from .regulatory_scraper import fetch_raw_records as fetch_regulatory
+        records.extend(fetch_regulatory(other_entries, pages=1))
+
+    return records
+
+
+__all__ = ["fetch_raw_records", "fetch_registry_records", "MinistryScraper"]
 
 
 def main():
@@ -445,7 +517,7 @@ def main():
 
         if args.output:
             out_path = os.path.join(args.output, f"{ministry_id}.json")
-            data = {ep: [asdict(p) for p in posts] for ep, posts in results.items()}
+            data = {ep: [p.model_dump(mode="json") for p in posts] for ep, posts in results.items()}
             with open(out_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2, default=str)
             print(f"\n  Saved to {out_path}")

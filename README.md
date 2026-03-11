@@ -10,8 +10,8 @@ Scripts to scrape Nepali text from 300+ government, news, and social media sourc
 | `ekantipur_scraper.py` | 8 pages (national + 7 provinces) | News HTML | ~100-300 |
 | `govt_scraper.py` | 17 federal ministries | Government | ~200-500 |
 | `dao_scraper.py` | 77 District Administration Offices | Government | ~500-2000 |
-| `govt_sources_registry.yaml` | 53 govt bodies (constitutional, regulatory, judiciary, security, disaster, parliament, provinces, municipalities) | Config | — |
-| `social_sources.yaml` | 59 Twitter/X accounts + 15 hashtags + 10 searches | Social | — |
+| `sources/govt_sources_registry.yaml` | 53 govt bodies (constitutional, regulatory, judiciary, security, disaster, parliament, provinces, municipalities) | Config | — |
+| `sources/social_sources.yaml` | 59 Twitter/X accounts + 15 hashtags + 10 searches | Social | — |
 | + HTML-only news | 13 sources (Ratopati 7 provinces, Himalayan Times, Republica, etc.) | Reference | — |
 
 **Total: ~300 unique source configurations** covering national news, provincial news, federal ministries, 77 district offices, constitutional bodies, security agencies, disaster portals, political leaders, journalists, and party accounts.
@@ -20,6 +20,14 @@ Scripts to scrape Nepali text from 300+ government, news, and social media sourc
 
 ```bash
 pip install -r requirements.txt
+```
+
+## Services
+
+Start PostgreSQL (Docker) and the dashboard:
+
+```bash
+./scripts/start_services.sh
 ```
 
 ## News RSS Scraper (33 feeds)
@@ -88,7 +96,7 @@ python dao_scraper.py --district kaski --category notice-ne # Nepali notices
 
 ## Config Files
 
-### `govt_sources_registry.yaml`
+### `sources/govt_sources_registry.yaml`
 Complete registry of 53 government sources organized by type:
 - 22 Federal Ministries (OPMCM, MOHA, MOFA, MOF, MOHP, MOD, etc.)
 - 6 Constitutional Bodies (Election Commission, CIAA, Auditor General, PSC, NHRC, NWC)
@@ -100,7 +108,7 @@ Complete registry of 53 government sources organized by type:
 - 7 Provincial Governments
 - 6 Metropolitan Cities (Kathmandu, Lalitpur, Bharatpur, Pokhara, Biratnagar, Birgunj)
 
-### `social_sources.yaml`
+### `sources/social_sources.yaml`
 59 Twitter/X accounts scraped via Nitter (no API needed):
 - 7 Government & Official accounts
 - 26 Political Leaders (all major party leaders)
@@ -161,7 +169,7 @@ Daily cron for accumulating articles:
 - **SSL issues:** Nepal govt sites often have expired SSL certs. Govt/DAO scrapers disable verification.
 - **Nepali dates:** Government documents use Bikram Sambat (BS) dates (e.g., 2081-09-15), preserved as-is.
 - **Deduplication:** All scrapers deduplicate by URL within a run. For cross-run dedup, use `id` or `url`.
-- **Nitter scraping:** Social sources require a working Nitter instance. Instances go down frequently — check `social_sources.yaml` for alternatives.
+- **Nitter scraping:** Social sources require a working Nitter instance. Instances go down frequently — check `sources/social_sources.yaml` for alternatives.
 
 ## License
 

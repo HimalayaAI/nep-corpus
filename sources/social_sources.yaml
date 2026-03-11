@@ -7,6 +7,16 @@ nitter_instances:
     priority: 1
   - url: https://nitter.privacydev.net
     priority: 2
+  - url: https://nitter.net
+    priority: 3
+  - url: https://nitter.mint.lgbt
+    priority: 4
+  - url: https://nitter.projectneptune.net
+    priority: 5
+  - url: https://nitter.moomoo.me
+    priority: 6
+  - url: https://nitter.perennialte.ch
+    priority: 7
 
 # ── Government & Official (7) ──
 accounts:

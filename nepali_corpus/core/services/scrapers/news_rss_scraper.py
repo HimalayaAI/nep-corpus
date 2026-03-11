@@ -23,33 +23,42 @@ import logging
 import os
 import re
 import time
-from dataclasses import asdict, dataclass, field
-from datetime import datetime
 from typing import Dict, List, Optional
 from email.utils import parsedate_to_datetime
 
-import feedparser
 import requests
+
+try:
+    from ...models import RawRecord
+    from ...models.news_schemas import RssArticle
+except ImportError:  # pragma: no cover
+    from nepali_corpus.core.models import RawRecord
+    from nepali_corpus.core.models.news_schemas import RssArticle
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class Article:
-    """A news article from an RSS feed."""
-    id: str
-    title: str
-    url: str
-    source_id: str
-    source_name: str
-    language: str
-    published_at: Optional[str] = None
-    summary: Optional[str] = None
-    content: Optional[str] = None
-    author: Optional[str] = None
-    categories: List[str] = field(default_factory=list)
-    fetched_at: str = field(default_factory=lambda: datetime.utcnow().isoformat())
+def article_to_raw(article: RssArticle) -> RawRecord:
+    fetched_at = article.fetched_at
+    if hasattr(fetched_at, "isoformat"):
+        fetched_at = fetched_at.isoformat()
+    return RawRecord(
+        source_id=article.source_id,
+        source_name=article.source_name,
+        url=article.url,
+        title=article.title,
+        summary=article.summary,
+        content=article.content,
+        language=article.language,
+        published_at=article.published_at,
+        tags=list(article.categories) if article.categories else [],
+        fetched_at=fetched_at,
+        raw_meta={
+            "author": article.author,
+            "article_id": article.id,
+        },
+    )
 
 
 # ============ Nepal News RSS Feeds ============
@@ -298,13 +307,17 @@ def clean_html(text: str) -> str:
     return text.strip()
 
 
-def fetch_feed(feed_id: str, feed_config: dict, timeout: int = 30) -> List[Article]:
+def fetch_feed(feed_id: str, feed_config: dict, timeout: int = 30) -> List[RssArticle]:
     """Fetch and parse a single RSS feed."""
+    import feedparser
+
     url = feed_config["url"]
     logger.info(f"Fetching {feed_config['name']} ({url})")
 
     try:
-        response = requests.get(url, timeout=timeout, headers={
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        response = requests.get(url, timeout=timeout, verify=False, headers={
             "User-Agent": "Mozilla/5.0 (compatible; NepaliCorpus/1.0)"
         })
         response.raise_for_status()
@@ -343,7 +356,7 @@ def fetch_feed(feed_id: str, feed_config: dict, timeout: int = 30) -> List[Artic
 
         article_id = entry.get("id", link)
 
-        articles.append(Article(
+        articles.append(RssArticle(
             id=article_id,
             title=title,
             url=link,
@@ -359,6 +372,28 @@ def fetch_feed(feed_id: str, feed_config: dict, timeout: int = 30) -> List[Artic
 
     logger.info(f"  {feed_config['name']}: {len(articles)} articles")
     return articles
+
+
+def fetch_raw_records(
+    feed_id: Optional[str] = None,
+    language: Optional[str] = None,
+    delay: float = 1.0,
+) -> List[RawRecord]:
+    if feed_id:
+        if feed_id not in FEEDS:
+            raise ValueError(f"Unknown feed: {feed_id}. Use --list to see available feeds.")
+        targets = {feed_id: FEEDS[feed_id]}
+    elif language:
+        targets = {k: v for k, v in FEEDS.items() if v["language"] == language}
+    else:
+        targets = FEEDS
+
+    records: List[RawRecord] = []
+    for fid, cfg in targets.items():
+        articles = fetch_feed(fid, cfg)
+        records.extend(article_to_raw(a) for a in articles)
+        time.sleep(delay)
+    return records
 
 
 def main():
@@ -423,7 +458,7 @@ def main():
     if args.format == "jsonl":
         with open(args.output, "w", encoding="utf-8") as f:
             for a in all_articles:
-                f.write(json.dumps(asdict(a), ensure_ascii=False, default=str) + "\n")
+                f.write(json.dumps(a.model_dump(mode="json"), ensure_ascii=False, default=str) + "\n")
         print(f"Saved {len(all_articles)} articles to {args.output}")
     else:
         if os.path.isdir(args.output) or args.output.endswith("/"):
@@ -435,11 +470,11 @@ def main():
             for source_id, articles in by_source.items():
                 path = os.path.join(args.output, f"{source_id}.json")
                 with open(path, "w", encoding="utf-8") as f:
-                    json.dump([asdict(a) for a in articles], f, ensure_ascii=False, indent=2, default=str)
+                    json.dump([a.model_dump(mode="json") for a in articles], f, ensure_ascii=False, indent=2, default=str)
                 print(f"  {source_id}: {len(articles)} articles → {path}")
         else:
             with open(args.output, "w", encoding="utf-8") as f:
-                json.dump([asdict(a) for a in all_articles], f, ensure_ascii=False, indent=2, default=str)
+                json.dump([a.model_dump(mode="json") for a in all_articles], f, ensure_ascii=False, indent=2, default=str)
             print(f"Saved {len(all_articles)} articles to {args.output}")
 
 
