@@ -1,0 +1,42 @@
+target_repo: "himalaya-ai/nepali-corpus-compile"
+
+sources:
+  - name: "paudelnirajan/nepali-corpus-v1"
+    kind: "hf"
+    repo: "paudelnirajan/nepali-corpus-v1"
+    split: "train"
+    fields:
+      text: "text"
+
+  - name: "IRIIS-RESEARCH/Nepali-Text-Corpus"
+    kind: "hf"
+    repo: "IRIIS-RESEARCH/Nepali-Text-Corpus"
+    split: "train"
+    fields:
+      text: "Article"
+      url: "Source"
+      doc_id: "index"
+
+  - name: "AdarshaShrestha/nepali-news-corpus"
+    kind: "hf"
+    repo: "AdarshaShrestha/nepali-news-corpus"
+    split: "train"
+    fields:
+      text: "text"
+
+  - name: "spandyie/nepali-news-dataset"
+    kind: "hf"
+    repo: "spandyie/nepali-news-dataset"
+    split: "train"
+    fields:
+      text: "text"
+      url: "link"
+
+options:
+  batch_size: 100000
+  incremental: true
+  refresh_dedupe: true
+  min_chars: 20
+  filter_nepali: true
+  min_devanagari_ratio: 0.3
+  default_language: "ne"
