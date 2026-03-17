@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import yaml
-from datasets import Dataset, load_dataset
+from datasets import Dataset, Features, Value, load_dataset
 from huggingface_hub import HfApi, get_token, login
 
 # Ensure project root is on sys.path for scripts.* imports
@@ -153,6 +153,42 @@ def iter_hf_dataset(repo: str, split: str = "train") -> Iterator[Dict[str, Any]]
         yield row
 
 
+def iter_hf_parquet_texts(repo: str, token: Optional[str] = None) -> Iterator[str]:
+    """
+    Stream only the `text` column directly from parquet shards to avoid
+    schema-cast errors when some shards have all-null optional columns.
+    """
+    import fsspec
+    import pyarrow.parquet as pq
+
+    api = HfApi()
+    try:
+        files = api.list_repo_files(repo, repo_type="dataset")
+    except Exception:
+        return
+
+    parquet_files = [f for f in files if f.startswith("data/") and f.endswith(".parquet")]
+    if not parquet_files:
+        return
+
+    def shard_key(path: str) -> int:
+        m = _HF_SHARD_RE.match(path)
+        return int(m.group(1)) if m else 0
+
+    parquet_files.sort(key=shard_key)
+
+    fs = fsspec.filesystem("hf", token=token or get_token())
+    for path in parquet_files:
+        with fs.open(f"hf://datasets/{repo}/{path}", "rb") as fh:
+            pf = pq.ParquetFile(fh)
+            if "text" not in pf.schema.names:
+                continue
+            for batch in pf.iter_batches(columns=["text"]):
+                for value in batch.column(0).to_pylist():
+                    if value:
+                        yield str(value)
+
+
 def iter_jsonl(path: str) -> Iterator[Dict[str, Any]]:
     with open(path, "r", encoding="utf-8") as f:
         for line in f:
@@ -264,15 +300,12 @@ def map_item_to_schema(
     return row, text_norm
 
 
-def prefill_dedupe_from_hf(store: DedupeStore, repo_id: str) -> None:
+def prefill_dedupe_from_hf(store: DedupeStore, repo_id: str, token: Optional[str] = None) -> None:
     logger.info("Prefilling dedupe store from existing HF dataset: %s", repo_id)
     count = 0
     buffer: List[bytes] = []
-    for row in iter_hf_dataset(repo_id, split="train"):
-        text = row.get("text")
-        if not text:
-            continue
-        text_norm = normalize_text(str(text))
+    for text in iter_hf_parquet_texts(repo_id, token=token):
+        text_norm = normalize_text(text)
         if not text_norm:
             continue
         buffer.append(hash_text(text_norm))
@@ -304,7 +337,16 @@ def upload_parquet_batch(
         "doc_id": [row.get("doc_id") for row in rows],
     }
 
-    hf_dataset = Dataset.from_dict(data_dict)
+    features = Features(
+        {
+            "text": Value("string"),
+            "source": Value("string"),
+            "url": Value("string"),
+            "language": Value("string"),
+            "doc_id": Value("string"),
+        }
+    )
+    hf_dataset = Dataset.from_dict(data_dict, features=features)
     os.makedirs("data/hf_merge_export", exist_ok=True)
     parquet_path = f"data/hf_merge_export/train-{shard_index:06d}-of-000000.parquet"
     repo_path = f"data/train-{shard_index:06d}-of-000000.parquet"
@@ -401,7 +443,7 @@ def merge_and_upload(
     store = DedupeStore(dedupe_store_path, reset=refresh_dedupe)
     try:
         if repo_exists and incremental and refresh_dedupe:
-            prefill_dedupe_from_hf(store, repo_id)
+            prefill_dedupe_from_hf(store, repo_id, token=token)
 
         max_index = get_max_shard_index(api, repo_id) if repo_exists else 0
         shard_index = max_index + 1
