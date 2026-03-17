@@ -16,14 +16,24 @@ import os
 import re
 import sqlite3
 import sys
-import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 import yaml
 from datasets import Dataset, load_dataset
 from huggingface_hub import HfApi, get_token, login
+
+# Ensure project root is on sys.path for scripts.* imports
+project_root = str(Path(__file__).resolve().parents[2])
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from scripts.merge_datasets.quality_filters import (
+    FilterSpec,
+    normalize_text,
+    passes_quality,
+)
 
 
 logging.basicConfig(
@@ -33,38 +43,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-_WHITESPACE_RE = re.compile(r"\s+")
 _HF_SHARD_RE = re.compile(r"^data/train-(\d+)")
-_DEVANAGARI_RANGES = (
-    (0x0900, 0x097F),  # Devanagari
-    (0xA8E0, 0xA8FF),  # Devanagari Extended
-    (0x1CD0, 0x1CFF),  # Vedic Extensions (rare but safe)
-)
-
-
-def _is_devanagari(ch: str) -> bool:
-    cp = ord(ch)
-    for start, end in _DEVANAGARI_RANGES:
-        if start <= cp <= end:
-            return True
-    return False
-
-
-def devanagari_ratio(text: str) -> float:
-    total = 0
-    dev = 0
-    for ch in text:
-        if ch.isalpha() or ch.isdigit():
-            total += 1
-            if _is_devanagari(ch):
-                dev += 1
-    if total == 0:
-        return 0.0
-    return dev / total
-
-
-def normalize_text(text: str) -> str:
-    return _WHITESPACE_RE.sub(" ", unicodedata.normalize("NFKC", text)).strip()
 
 
 def hash_text(text: str) -> bytes:
@@ -115,6 +94,7 @@ class SourceConfig:
     split: str = "train"
     path: Optional[str] = None
     fields: Optional[Dict[str, Any]] = None
+    filters: Optional[Dict[str, Any]] = None
 
 
 class DedupeStore:
@@ -231,6 +211,7 @@ def parse_sources(raw_sources: List[Dict[str, Any]]) -> List[SourceConfig]:
                 split=raw.get("split", "train"),
                 path=raw.get("path"),
                 fields=raw.get("fields") or {},
+                filters=raw.get("filters") or None,
             )
         )
     return sources
@@ -240,9 +221,7 @@ def map_item_to_schema(
     item: Dict[str, Any],
     source_name: str,
     fields: Dict[str, Any],
-    min_chars: int,
-    filter_nepali: bool,
-    min_devanagari_ratio: float,
+    filter_spec: Optional[FilterSpec],
     default_language: Optional[str],
 ) -> Optional[Tuple[Dict[str, Any], str]]:
     text_key = fields.get("text", "text")
@@ -252,9 +231,9 @@ def map_item_to_schema(
 
     text_str = str(text_val)
     text_norm = normalize_text(text_str)
-    if not text_norm or len(text_norm) < min_chars:
+    if not text_norm:
         return None
-    if filter_nepali and devanagari_ratio(text_norm) < min_devanagari_ratio:
+    if not passes_quality(text_norm, filter_spec):
         return None
 
     row: Dict[str, Any] = {
@@ -359,6 +338,33 @@ def iter_source_items(source: SourceConfig) -> Iterator[Dict[str, Any]]:
         raise ValueError(f"Unsupported source kind: {source.kind}")
 
 
+def build_legacy_filter_spec(options: Dict[str, Any]) -> Optional[FilterSpec]:
+    min_chars = options.get("min_chars", 1)
+    filter_nepali = options.get("filter_nepali", False)
+    min_devanagari_ratio = options.get("min_devanagari_ratio", 0.3)
+
+    if min_chars is None:
+        min_chars = 0
+
+    return FilterSpec(
+        min_chars=int(min_chars),
+        min_words=0,
+        min_devanagari_ratio=float(min_devanagari_ratio) if filter_nepali else 0.0,
+    )
+
+
+def resolve_filter_spec(
+    *,
+    source: SourceConfig,
+    global_spec: Optional[FilterSpec],
+    legacy_spec: Optional[FilterSpec],
+) -> Optional[FilterSpec]:
+    spec = global_spec if global_spec is not None else legacy_spec
+    if source.filters:
+        spec = spec.merge(source.filters) if spec else FilterSpec.from_dict(source.filters)
+    return spec
+
+
 def merge_and_upload(
     *,
     sources: List[SourceConfig],
@@ -369,9 +375,8 @@ def merge_and_upload(
     refresh_dedupe: bool,
     dedupe_store_path: str,
     max_batches: Optional[int],
-    min_chars: int,
-    filter_nepali: bool,
-    min_devanagari_ratio: float,
+    global_filter_spec: Optional[FilterSpec],
+    legacy_filter_spec: Optional[FilterSpec],
     default_language: Optional[str],
 ) -> None:
     api = HfApi()
@@ -411,14 +416,17 @@ def merge_and_upload(
 
         for source in sources:
             logger.info("Processing source: %s", source.name)
+            filter_spec = resolve_filter_spec(
+                source=source,
+                global_spec=global_filter_spec,
+                legacy_spec=legacy_filter_spec,
+            )
             for item in iter_source_items(source):
                 mapped = map_item_to_schema(
                     item,
                     source.name,
                     source.fields or {},
-                    min_chars,
-                    filter_nepali,
-                    min_devanagari_ratio,
+                    filter_spec,
                     default_language,
                 )
                 if not mapped:
@@ -529,6 +537,11 @@ def main() -> None:
     parser.add_argument("--no-refresh-dedupe", action="store_false", dest="refresh_dedupe", default=None)
     parser.add_argument("--max-batches", type=int, help="Max number of shards to upload")
     parser.add_argument("--token", help="HF write token (defaults to cache or HF_TOKEN)")
+    parser.add_argument(
+        "--dataset",
+        action="append",
+        help="Only process specific dataset(s) by source name or repo (can be repeated)",
+    )
 
     args = parser.parse_args()
 
@@ -544,14 +557,24 @@ def main() -> None:
         print("Error: No sources configured. Add `sources:` to the config.")
         sys.exit(1)
 
+    if args.dataset:
+        wanted = set(args.dataset)
+        filtered = [s for s in sources if s.name in wanted or s.repo in wanted]
+        if not filtered:
+            print("Error: --dataset did not match any configured sources.")
+            sys.exit(1)
+        sources = filtered
+
     options = config.get("options") or {}
     batch_size = args.batch_size or options.get("batch_size") or 50000
     incremental = args.incremental if args.incremental is not None else options.get("incremental")
     refresh_dedupe = args.refresh_dedupe if args.refresh_dedupe is not None else options.get("refresh_dedupe", True)
     max_batches = args.max_batches or options.get("max_batches")
-    min_chars = options.get("min_chars", 1)
-    filter_nepali = options.get("filter_nepali", False)
-    min_devanagari_ratio = options.get("min_devanagari_ratio", 0.3)
+    filters_raw = options.get("filters")
+    global_filter_spec = FilterSpec.from_dict(filters_raw) if isinstance(filters_raw, dict) else None
+    legacy_filter_spec = None
+    if global_filter_spec is None:
+        legacy_filter_spec = build_legacy_filter_spec(options)
     default_language = options.get("default_language")
 
     dedupe_store = (
@@ -576,9 +599,8 @@ def main() -> None:
         refresh_dedupe=refresh_dedupe,
         dedupe_store_path=dedupe_store,
         max_batches=max_batches,
-        min_chars=min_chars,
-        filter_nepali=filter_nepali,
-        min_devanagari_ratio=min_devanagari_ratio,
+        global_filter_spec=global_filter_spec,
+        legacy_filter_spec=legacy_filter_spec,
         default_language=default_language,
     )
 
