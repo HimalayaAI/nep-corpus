@@ -1,0 +1,78 @@
+target_repo: "himalaya-ai/nepali-corpus-compile"
+
+sources:
+  - name: "paudelnirajan/nepali-corpus-v1"
+    kind: "hf"
+    repo: "paudelnirajan/nepali-corpus-v1"
+    split: "train"
+    fields:
+      text: "text"
+
+  - name: "IRIIS-RESEARCH/Nepali-Text-Corpus"
+    kind: "hf"
+    repo: "IRIIS-RESEARCH/Nepali-Text-Corpus"
+    split: "train"
+    fields:
+      text: "Article"
+      url: "Source"
+      doc_id: "index"
+
+  - name: "AdarshaShrestha/nepali-news-corpus"
+    kind: "hf"
+    repo: "AdarshaShrestha/nepali-news-corpus"
+    split: "train"
+    fields:
+      text: "text"
+
+  - name: "spandyie/nepali-news-dataset"
+    kind: "hf"
+    repo: "spandyie/nepali-news-dataset"
+    split: "train"
+    fields:
+      text: "text"
+      url: "link"
+
+  - name: "raygx/Nepali-Extended-Text-Corpus"
+    kind: "hf"
+    repo: "raygx/Nepali-Extended-Text-Corpus"
+    split: "train"
+    fields:
+      text: "text"
+    filters:
+      min_chars: 20
+      min_words: 3
+      min_devanagari_ratio: 0.5
+      short_text:
+        max_chars: 80
+        min_words: 6
+        require_sentence_punct: true
+      max_digit_ratio: 0.4
+      max_symbol_ratio: 0.4
+      max_repeated_char_ratio: 0.3
+
+  - name: "Sakonii/nepalitext-language-model-dataset"
+    kind: "hf"
+    repo: "Sakonii/nepalitext-language-model-dataset"
+    split: "train"
+    fields:
+      text: "text"
+    filters:
+      min_chars: 20
+      min_words: 3
+      min_devanagari_ratio: 0.5
+      short_text:
+        max_chars: 80
+        min_words: 6
+        require_sentence_punct: true
+      max_digit_ratio: 0.4
+      max_symbol_ratio: 0.4
+      max_repeated_char_ratio: 0.3
+
+options:
+  batch_size: 100000
+  incremental: true
+  refresh_dedupe: true
+  min_chars: 20
+  filter_nepali: true
+  min_devanagari_ratio: 0.3
+  default_language: "ne"

@@ -13,6 +13,7 @@ from .government_schemas import GovtPost, MinistryConfig, RegistryEntry, DAOPost
 from .news_schemas import EkantipurArticle, RssArticle
 from .cleaning import CleaningConfig, CleaningResult
 from .storage import StorageConfig
+from .source_config import SourceConfig
 
 __all__ = [
     # Base hierarchy
@@ -43,4 +44,6 @@ __all__ = [
     "CleaningResult",
     # Storage
     "StorageConfig",
+    # Source config
+    "SourceConfig",
 ]

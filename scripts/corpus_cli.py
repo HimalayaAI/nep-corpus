@@ -226,7 +226,7 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
     from nepali_corpus.core.services.storage.env_storage import EnvStorageService
     from nepali_corpus.core.services.scrapers.control import ScrapeCoordinator
 
-    run_id = args.resume or datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_id = args.resume or args.run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
     output_dir = f"data/runs/{run_id}"
     os.makedirs(output_dir, exist_ok=True)
 
@@ -261,7 +261,18 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
     async def _run():
         storage = EnvStorageService()
         await storage.initialize()
-        coordinator = ScrapeCoordinator(storage)
+        coordinator = ScrapeCoordinator(
+            storage,
+            enrichment_batch_size=args.enrichment_batch_size,
+            rate_limit=args.rate_limit,
+            max_concurrent=args.max_concurrent,
+            source_timeout=args.source_timeout,
+            checkpoint_interval=args.checkpoint_interval,
+            enrichment_workers=args.enrichment_workers,
+            skip_successful_only=args.skip_successful,
+            ocr_enabled=getattr(args, "ocr", False),
+            pdf_enabled=getattr(args, "pdf", False),
+        )
 
         # Signal handling for graceful shutdown
         loop = asyncio.get_running_loop()
@@ -285,6 +296,7 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
                     govt_registry_groups=args.govt_groups,
                     output_dir=output_dir,
                     log_file=log_file,
+                    num_sources=args.num_sources,
                 )
             else:
                 await coordinator.start(
@@ -298,6 +310,7 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
                     run_id=run_id,
                     output_dir=output_dir,
                     log_file=log_file,
+                    num_sources=args.num_sources,
                 )
 
             # Wait for the coordinator task to finish
@@ -328,6 +341,38 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
                 print(f"\nTo resume: python scripts/corpus_cli.py coordinator --resume {run_id}")
 
             await storage.close()
+
+    asyncio.run(_run())
+
+
+def cmd_rerun_failed(args: argparse.Namespace) -> None:
+    """Rerun extraction for NULL records by pulling directly from DB."""
+    from nepali_corpus.core.services.storage.env_storage import EnvStorageService
+    from nepali_corpus.core.services.scrapers.control import ScrapeCoordinator
+
+    async def _run():
+        storage = EnvStorageService()
+        await storage.initialize()
+        coordinator = ScrapeCoordinator(
+            storage,
+            enrichment_workers=args.enrichment_workers,
+            enrichment_batch_size=args.batch_size,
+            rate_limit=args.rate_limit,
+            max_concurrent=args.max_concurrent,
+            ocr_enabled=getattr(args, "ocr", False),
+            pdf_enabled=getattr(args, "pdf", False),
+        )
+
+        print(f"⚙️  Starting Rerun-Failed mode for NULL records...")
+        print(f"Workers: {args.enrichment_workers}, Batch Size: {args.batch_size}")
+        if args.limit:
+            print(f"Limit: {args.limit} records")
+
+        await coordinator.run_rerun_failed(
+            batch_size=args.batch_size,
+            limit=args.limit,
+            log_file=args.log_file
+        )
 
     asyncio.run(_run())
 
@@ -457,12 +502,71 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma-separated groups from registry",
     )
     p_coord.add_argument("--gzip", action="store_true", help="Compress output")
+    p_coord.add_argument("--num-sources", type=int, help="Limit number of sources to scrape")
     p_coord.add_argument(
         "--resume",
         metavar="RUN_ID",
         help="Resume an interrupted run by its run_id",
     )
+    p_coord.add_argument(
+        "--run-id",
+        help="Custom run ID for this session (defaults to timestamp)",
+    )
+    # Production tuning flags
+    p_coord.add_argument("--rate-limit", type=float, default=2.0,
+                         dest="rate_limit",
+                         help="Max requests/sec per domain (default: 2.0)")
+    p_coord.add_argument("--max-concurrent", type=int, default=20,
+                         dest="max_concurrent",
+                         help="Max total concurrent requests (default: 20)")
+    p_coord.add_argument("--source-timeout", type=int, default=300,
+                         dest="source_timeout",
+                         help="Per-source timeout in seconds (default: 300)")
+    p_coord.add_argument("--enrichment-batch-size", type=int, default=50,
+                         dest="enrichment_batch_size",
+                         help="Records to buffer before triggering enrichment (default: 50)")
+    p_coord.add_argument("--checkpoint-interval", type=int, default=300,
+                         dest="checkpoint_interval",
+                         help="Seconds between periodic checkpoints (default: 300)")
+    p_coord.add_argument("--enrichment-workers", type=int, default=10,
+                         dest="enrichment_workers",
+                         help="Parallel workers for content extraction (default: 10)")
+    p_coord.add_argument("--skip-successful", action="store_true",
+                         dest="skip_successful",
+                         help="Skip only URLs that already have training data (retry failures)")
+    p_coord.add_argument("--ocr", action="store_true", default=False,
+                         help="Enable image OCR (slow, default: False)")
+    p_coord.add_argument("--pdf", action="store_true", default=False,
+                         help="Enable embedded PDF extraction (default: False)")
     p_coord.set_defaults(func=cmd_coordinator)
+
+    # --- Rerun-failed subcommand ---
+    p_rerun = sub.add_parser(
+        "rerun-failed",
+        help="Retry extraction for NULL records (Discovery-Free mode)",
+    )
+    p_rerun.add_argument("--workers", type=int, default=10,
+                          dest="enrichment_workers",
+                          help="Parallel workers for extraction (default: 10)")
+    p_rerun.add_argument("--batch-size", type=int, default=50,
+                          dest="batch_size",
+                          help="Batch size for DB updates (default: 50)")
+    p_rerun.add_argument("--rate-limit", type=float, default=2.0,
+                          dest="rate_limit",
+                          help="Max requests/sec per domain (default: 2.0)")
+    p_rerun.add_argument("--max-concurrent", type=int, default=20,
+                          dest="max_concurrent",
+                          help="Max total concurrent requests (default: 20)")
+    p_rerun.add_argument("--limit", type=int, default=0,
+                          help="Limit records to process (default: 0, no limit)")
+    p_rerun.add_argument("--log-file", default="data/rerun_failed.log",
+                          dest="log_file",
+                          help="Log file for repair run (default: data/rerun_failed.log)")
+    p_rerun.add_argument("--ocr", action="store_true", default=False,
+                          help="Enable image OCR (slow, default: False)")
+    p_rerun.add_argument("--pdf", action="store_true", default=False,
+                          help="Enable embedded PDF extraction (default: False)")
+    p_rerun.set_defaults(func=cmd_rerun_failed)
 
     return parser
 

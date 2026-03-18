@@ -59,6 +59,7 @@ class RegistryEntry(BaseEntity):
     base_url: Optional[str] = None
     endpoints: Dict[str, str] = Field(default_factory=dict)
     scraper_class: str = ""
+    is_discovery: bool = False
     priority: int = 3
     poll_interval_mins: int = 180
 

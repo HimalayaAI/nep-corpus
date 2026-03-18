@@ -1,0 +1,224 @@
+- id: tkp
+  name: The Kathmandu Post
+  url: https://kathmandupost.com/rss
+  source_type: rss
+  language: en
+  priority: 1
+  category: null
+- id: onlinekhabar_en
+  name: OnlineKhabar (English)
+  url: https://english.onlinekhabar.com/feed
+  source_type: rss
+  language: en
+  priority: 1
+  category: null
+- id: khabarhub
+  name: Khabarhub
+  url: https://english.khabarhub.com/feed/
+  source_type: rss
+  language: en
+  priority: 2
+  category: null
+- id: risingnepaldaily
+  name: The Rising Nepal
+  url: https://risingnepaldaily.com/rss
+  source_type: rss
+  language: en
+  priority: 2
+  category: null
+- id: spotlight
+  name: Spotlight Nepal
+  url: https://www.spotlightnepal.com/feed/
+  source_type: rss
+  language: en
+  priority: 3
+  category: null
+- id: bbc_south_asia
+  name: BBC South Asia
+  url: https://feeds.bbci.co.uk/news/world/asia/rss.xml
+  source_type: rss
+  language: en
+  priority: 1
+  category: null
+- id: onlinekhabar_ne
+  name: OnlineKhabar (Nepali)
+  url: https://www.onlinekhabar.com/feed
+  source_type: rss
+  language: ne
+  priority: 1
+  category: null
+- id: setopati
+  name: Setopati
+  url: https://www.setopati.com/feed
+  source_type: rss
+  language: ne
+  priority: 1
+  category: null
+- id: nagariknews
+  name: Nagarik News
+  url: https://nagariknews.nagariknetwork.com/feed
+  source_type: rss
+  language: ne
+  priority: 1
+  category: null
+- id: annapurnapost
+  name: Annapurna Post
+  url: https://annapurnapost.com/rss
+  source_type: rss
+  language: ne
+  priority: 1
+  category: null
+- id: bbc_nepali
+  name: BBC Nepali
+  url: https://feeds.bbci.co.uk/nepali/rss.xml
+  source_type: rss
+  language: ne
+  priority: 1
+  category: null
+- id: gorkhapatra
+  name: Gorkhapatra
+  url: https://gorkhapatraonline.com/rss
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+- id: khabarhub_ne
+  name: Khabarhub (Nepali)
+  url: https://khabarhub.com/feed/
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+- id: himalpress
+  name: Himal Press
+  url: https://www.himalpress.com/feed/
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+- id: pahilopost
+  name: Pahilo Post
+  url: https://pahilopost.com/feed
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+- id: ap1tv
+  name: AP1 TV
+  url: https://ap1hdtv.com/feed/
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+- id: imagetv
+  name: Image Channel
+  url: https://www.imagekhabar.com/feed
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+- id: merolagani
+  name: Mero Lagani
+  url: https://merolagani.com/rss.aspx
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+- id: koshi_onlinekhabar
+  name: OnlineKhabar Koshi
+  url: https://www.onlinekhabar.com/content/province/koshi/feed
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null
+- id: biratnagar_ob
+  name: Our Biratnagar
+  url: https://ourbiratnagar.net/feed/
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null
+- id: madhesh_onlinekhabar
+  name: OnlineKhabar Madhesh
+  url: https://www.onlinekhabar.com/content/province/madhesh/feed
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null
+- id: janakpur_today
+  name: Janakpur Today
+  url: https://ejanakpurtoday.com/feed/
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null
+- id: bagmati_onlinekhabar
+  name: OnlineKhabar Bagmati
+  url: https://www.onlinekhabar.com/content/province/bagmati/feed
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null
+- id: himalpress_bagmati
+  name: HimalPress Bagmati
+  url: https://en.himalpress.com/category/province/province-3/feed/
+  source_type: rss
+  language: en
+  priority: 3
+  category: null
+- id: gandaki_onlinekhabar
+  name: OnlineKhabar Gandaki
+  url: https://www.onlinekhabar.com/content/province/gandaki/feed
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null
+- id: gandaknews
+  name: Gandak News
+  url: https://www.gandaknews.com/feed/
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null
+- id: pokharahotline
+  name: Pokhara Hotline
+  url: https://pokharahotline.com/feed/
+  source_type: rss
+  language: ne
+  priority: 4
+  category: null
+- id: lumbini_onlinekhabar
+  name: OnlineKhabar Lumbini
+  url: https://www.onlinekhabar.com/content/province/lumbini/feed
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null
+- id: lumbini_online
+  name: Lumbini Online
+  url: https://www.lumbinionline.com/feed/
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null
+- id: karnali_onlinekhabar
+  name: OnlineKhabar Karnali
+  url: https://www.onlinekhabar.com/content/province/karnali/feed
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null
+- id: karnali_mission
+  name: Karnali Mission
+  url: https://karnalimission.com/feed/
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null
+- id: sudurpashchim_onlinekhabar
+  name: OnlineKhabar Sudurpashchim
+  url: https://www.onlinekhabar.com/content/province/sudurpashchim/feed
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null

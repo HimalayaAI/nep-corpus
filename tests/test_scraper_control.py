@@ -68,7 +68,7 @@ def test_scrape_coordinator_runs(monkeypatch, tmp_path):
     )
 
     # Patch _build_jobs to avoid network and registry
-    def _mock_build_jobs(self, categories, max_pages, govt_registry_path, govt_registry_groups):
+    def _mock_build_jobs(self, categories, max_pages, govt_registry_path, govt_registry_groups, num_sources=None):
         return [
             ScrapeJob(
                 name="mock_source",
@@ -80,7 +80,15 @@ def test_scrape_coordinator_runs(monkeypatch, tmp_path):
 
     monkeypatch.setattr(ScrapeCoordinator, "_build_jobs", _mock_build_jobs)
 
-    coordinator = ScrapeCoordinator(FakeStorage())
+    # Patch enrich_records
+    def _mock_enrich_records(records, *args, **kwargs):
+        # enrich_records returns [(record, content_string), ...]
+        return [(rec, rec.content or "mock_content_so_it_has_length_over_100" * 5) for rec in records]
+        
+    monkeypatch.setattr("nepali_corpus.core.services.scrapers.control.enrich_records", _mock_enrich_records)
+
+    # Use enrichment_batch_size of 1000 so the buffer won't auto-flush during the test
+    coordinator = ScrapeCoordinator(FakeStorage(), enrichment_batch_size=1000)
 
     async def _run():
         await coordinator.start(
@@ -94,7 +102,10 @@ def test_scrape_coordinator_runs(monkeypatch, tmp_path):
             govt_registry_path=None,
             govt_registry_groups=None,
         )
-        while coordinator.is_running():
+        # Wait for coordinator with a timeout
+        for _ in range(100):
+            if not coordinator.is_running():
+                break
             await asyncio.sleep(0.1)
 
     asyncio.run(_run())

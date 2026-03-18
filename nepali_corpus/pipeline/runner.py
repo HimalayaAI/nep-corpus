@@ -167,8 +167,10 @@ logger = logging.getLogger(__name__)
 def enrich_records(
     records: Iterable[RawRecord],
     cache_dir: str,
-    min_enrich_len: int = 200,
+    min_enrich_len: int = 1000,
     max_workers: int = 10,
+    ocr_enabled: bool = True,
+    pdf_enabled: bool = True,
 ) -> List[Tuple[RawRecord, Optional[str]]]:
     """Parallel enrichment using ThreadPoolExecutor."""
     records_list = list(records)
@@ -185,7 +187,13 @@ def enrich_records(
 
         try:
             data, content_type = fetch_content(rec.url, cache_dir=cache_dir)
-            extracted = extract_text(data, content_type=content_type, url=rec.url) if data else None
+            extracted = extract_text(
+                data,
+                content_type=content_type,
+                url=rec.url,
+                ocr_enabled=ocr_enabled,
+                pdf_enabled=pdf_enabled,
+            ) if data else None
             enriched[index] = (rec, extracted)
         except Exception as e:
             logger.warning(f"Error enriching {rec.url}: {e}")

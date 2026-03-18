@@ -229,7 +229,7 @@ class DAOScraper(ScraperBase):
                 posts.append(DAOPost(
                     id=pid, title=title, url=url, district=info["name"],
                     province=info["province"], date_bs=date_bs, category=category,
-                    has_attachment=has_att, source=f"dao{district_key}.moha.gov.np",
+                    has_attachment=has_att, source_id=f"dao{district_key}.moha.gov.np",
                     source_name=f"DAO {info['name']}",
                 ))
             return posts
@@ -261,7 +261,7 @@ class DAOScraper(ScraperBase):
             posts.append(DAOPost(
                 id=pid, title=title, url=url, district=info["name"],
                 province=info["province"], date_bs=date_bs, category=category,
-                has_attachment=False, source=f"dao{district_key}.moha.gov.np",
+                has_attachment=False, source_id=f"dao{district_key}.moha.gov.np",
                 source_name=f"DAO {info['name']}",
             ))
         return posts

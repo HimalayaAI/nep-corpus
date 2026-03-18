@@ -1,268 +1,672 @@
-# Nepal Social Media Sources for Corpus Building
-# 59 Twitter/X accounts + 15 hashtags + 10 search queries
-# Scraped via Nitter instances (no Twitter API needed)
-
-nitter_instances:
-  - url: https://nitter.poast.org
-    priority: 1
-  - url: https://nitter.privacydev.net
-    priority: 2
-  - url: https://nitter.net
-    priority: 3
-  - url: https://nitter.mint.lgbt
-    priority: 4
-  - url: https://nitter.projectneptune.net
-    priority: 5
-  - url: https://nitter.moomoo.me
-    priority: 6
-  - url: https://nitter.perennialte.ch
-    priority: 7
-
-# ── Government & Official (7) ──
-accounts:
-  - username: ECNOfficial
-    name: Election Commission Nepal
-    category: govt
-  - username: NepaliArmyHQ
-    name: Nepal Army Headquarters
-    category: security
-  - username: NDRRMA_Nepal
-    name: NDRRMA Nepal (Disaster)
-    category: disaster
-  - username: NepalPoliceHQ
-    name: Nepal Police HQ
-    category: security
-  - username: MoHA_Nepal
-    name: Ministry of Home Affairs
-    category: govt
-  - username: pmsushilakarki
-    name: Sushila Karki (Interim PM)
-    category: govt
-  - username: KulmanGhising
-    name: Kulman Ghising (Energy Minister)
-    category: govt
-
-  # ── Political Leaders (26) ──
-  - username: kpsharmaoli
-    name: KP Sharma Oli (CPN-UML)
-    category: political
-  - username: cmprachanda
-    name: Pushpa Kamal Dahal (Maoist Centre)
-    category: political
-  - username: SherBDeuba
-    name: Sher Bahadur Deuba (NC)
-    category: political
-  - username: thapagk
-    name: Gagan Thapa (NC President)
-    category: political
-  - username: hamrorabi
-    name: Rabi Lamichhane (RSP)
-    category: political
-  - username: ShahBalen
-    name: Balen Shah (RSP, former Mayor)
-    category: political
-  - username: KTnepal
-    name: Kamal Thapa (RPP)
-    category: political
-  - username: brb1954
-    name: Baburam Bhattarai (Socialist)
-    category: political
-  - username: yogesbhattarai
-    name: Yogesh Bhattarai (CPN-UML)
-    category: political
-  - username: BishnuRimal
-    name: Bishnu Rimal (CPN-UML)
-    category: political
-  - username: RabindraMishra
-    name: Rabindra Mishra (RPP)
-    category: political
-  - username: BinodKChaudhary
-    name: Binod Chaudhary (NC MP)
-    category: political
-  - username: SwarnimWagle
-    name: Swarnim Wagle (RSP Vice-Chair)
-    category: political
-  - username: NPSaudnc
-    name: NP Saud (NC, Former FM)
-    category: political
-  - username: NCPurnaKhadka
-    name: Purna Bahadur Khadka (NC)
-    category: political
-  - username: IshwarPokhrel
-    name: Ishwar Pokhrel (CPN-UML)
-    category: political
-  - username: GokulPBaskota
-    name: Gokul Prasad Baskota (CPN-UML)
-    category: political
-  - username: JSPrabhakar
-    name: Janardan Sharma (Maoist Centre)
-    category: political
-  - username: ram_partha
-    name: Ram Karki (Maoist Centre)
-    category: political
-  - username: sumnima_udas
-    name: Sumnima Udas (RSP)
-    category: political
-  - username: Kabindra99
-    name: Kabindra Burlakoti (RSP)
-    category: political
-  - username: Himalayabiraj
-    name: Biraj Bhakta Shrestha (RSP)
-    category: political
-  - username: RajendraLingden
-    name: Rajendra Lingden (RPP Chairman)
-    category: political
-  - username: DrPrakashChan1
-    name: Prakash Chandra Lohani (RPP)
-    category: political
-  - username: rlgolchha
-    name: Rajlakshmi Golchha (CPN-UML MP)
-    category: political
-  - username: brtdhl
-    name: Bharat Dahal (Commentator)
-    category: political
-  - username: MahabirPun
-    name: Mahabir Pun (Activist)
-    category: political
-  - username: HarkaSampang
-    name: Harka Sampang (Independent)
-    category: political
-
-  # ── Party Official Accounts (5) ──
-  - username: party_swatantra
-    name: Rastriya Swatantra Party (Official)
-    category: political
-  - username: NepaliCongress
-    name: Nepali Congress (Official)
-    category: political
-  - username: CPNUML
-    name: CPN-UML (Official)
-    category: political
-  - username: MaoistCentre
-    name: Maoist Centre (Official)
-    category: political
-  - username: RPPNepal
-    name: RPP (Official)
-    category: political
-
-  # ── Election Info (1) ──
-  - username: ratemyneta
-    name: Rate My Neta (Live Election Info)
-    category: political
-
-  # ── News Media (4) ──
-  - username: kathmandupost
-    name: The Kathmandu Post
-    category: news
-  - username: OnlineKhabar
-    name: Online Khabar
-    category: news
-  - username: BBCNepali
-    name: BBC Nepali
-    category: international
-  - username: MyRepublica
-    name: My Republica
-    category: news
-
-  # ── Journalists & Analysts (14) ──
-  - username: sudheerktm
-    name: Sudheer Sharma (Journalist)
-    category: journalist
-  - username: realpbhattarai
-    name: Pradip Bhattarai (Commentator)
-    category: journalist
-  - username: Vijaykumarko
-    name: Vijay Kumar Panday (TV Host)
-    category: journalist
-  - username: kundadixit
-    name: Kunda Dixit (Nepali Times)
-    category: journalist
-  - username: romangautam
-    name: Roman Gautam (Himal Southasian)
-    category: journalist
-  - username: bhadrarukum
-    name: Bhadra Sharma (NYT Nepal)
-    category: journalist
-  - username: kishorenepal
-    name: Kishore Nepal (Writer)
-    category: journalist
-  - username: RameshBhushal
-    name: Ramesh Bhushal (Science Reporter)
-    category: journalist
-  - username: KoshRKoirala
-    name: Kosh R Koirala (Republica Editor)
-    category: journalist
-  - username: NepaliComment
-    name: Dipesh Tripathi (Nepali Comment)
-    category: journalist
-  - username: rabirajbaral
-    name: Rabi Raj Baral (Journalist)
-    category: journalist
-  - username: Cvaanee
-    name: Shivanee Thapa Basnyat (News Editor)
-    category: journalist
-  - username: biswasktm
-    name: Biswas Baral (KTM Post Editor)
-    category: journalist
-  - username: shwetha19S
-    name: Shwetha Srikanthan (Himal Southasian)
-    category: journalist
-
-# ── Hashtags (15) ──
-hashtags:
-  # English
-  - tag: kpoli
-    name: Nepal Politics
-  - tag: NepalElection
-    name: Nepal Election 2082
-  - tag: balen
-    name: Balen Shah
-  - tag: NepalFlood
-    name: Nepal Flood
-  - tag: NepalDisaster
-    name: Nepal Disaster
-  - tag: NepalNews
-    name: Nepal News
-  - tag: Kathmandu
-    name: Kathmandu
-
-  # Nepali
-  - tag: नेपाल
-    name: Nepal (Nepali)
-  - tag: काठमाडौं
-    name: Kathmandu (Nepali)
-  - tag: नेपालनिर्वाचन
-    name: Nepal Election (Nepali)
-  - tag: बाढी
-    name: Flood (Nepali)
-  - tag: भूकम्प
-    name: Earthquake (Nepali)
-  - tag: पहिरो
-    name: Landslide (Nepali)
-  - tag: संसद
-    name: Parliament (Nepali)
-  - tag: नेपालराजनीति
-    name: Nepal Politics (Nepali)
-
-# ── Text Searches (10) ──
-searches:
-  - query: "RSP Nepal election"
-    name: RSP Election Coverage
-  - query: "UML Nepal election"
-    name: UML Election Coverage
-  - query: "Nepali Congress election"
-    name: NC Election Coverage
-  - query: "Maoist Centre Nepal"
-    name: Maoist Centre Coverage
-  - query: "Nepal election results 2082"
-    name: Nepal Election Results
-  - query: "Nepal vote counting"
-    name: Vote Counting Updates
-  - query: "Balen Shah Jhapa"
-    name: Balen Shah Updates
-  - query: "KP Oli election"
-    name: KP Oli Election
-  - query: "Nepal election violence"
-    name: Election Violence Reports
-  - query: "Nepal booth capturing"
-    name: Booth Capturing Reports
+- id: social:ECNOfficial
+  name: Election Commission Nepal
+  url: https://nitter.poast.org/ECNOfficial
+  source_type: social
+  category: govt
+  meta:
+    username: ECNOfficial
+    type: account
+- id: social:NepaliArmyHQ
+  name: Nepal Army Headquarters
+  url: https://nitter.poast.org/NepaliArmyHQ
+  source_type: social
+  category: security
+  meta:
+    username: NepaliArmyHQ
+    type: account
+- id: social:NDRRMA_Nepal
+  name: NDRRMA Nepal (Disaster)
+  url: https://nitter.poast.org/NDRRMA_Nepal
+  source_type: social
+  category: disaster
+  meta:
+    username: NDRRMA_Nepal
+    type: account
+- id: social:NepalPoliceHQ
+  name: Nepal Police HQ
+  url: https://nitter.poast.org/NepalPoliceHQ
+  source_type: social
+  category: security
+  meta:
+    username: NepalPoliceHQ
+    type: account
+- id: social:MoHA_Nepal
+  name: Ministry of Home Affairs
+  url: https://nitter.poast.org/MoHA_Nepal
+  source_type: social
+  category: govt
+  meta:
+    username: MoHA_Nepal
+    type: account
+- id: social:pmsushilakarki
+  name: Sushila Karki (Interim PM)
+  url: https://nitter.poast.org/pmsushilakarki
+  source_type: social
+  category: govt
+  meta:
+    username: pmsushilakarki
+    type: account
+- id: social:KulmanGhising
+  name: Kulman Ghising (Energy Minister)
+  url: https://nitter.poast.org/KulmanGhising
+  source_type: social
+  category: govt
+  meta:
+    username: KulmanGhising
+    type: account
+- id: social:kpsharmaoli
+  name: KP Sharma Oli (CPN-UML)
+  url: https://nitter.poast.org/kpsharmaoli
+  source_type: social
+  category: political
+  meta:
+    username: kpsharmaoli
+    type: account
+- id: social:cmprachanda
+  name: Pushpa Kamal Dahal (Maoist Centre)
+  url: https://nitter.poast.org/cmprachanda
+  source_type: social
+  category: political
+  meta:
+    username: cmprachanda
+    type: account
+- id: social:SherBDeuba
+  name: Sher Bahadur Deuba (NC)
+  url: https://nitter.poast.org/SherBDeuba
+  source_type: social
+  category: political
+  meta:
+    username: SherBDeuba
+    type: account
+- id: social:thapagk
+  name: Gagan Thapa (NC President)
+  url: https://nitter.poast.org/thapagk
+  source_type: social
+  category: political
+  meta:
+    username: thapagk
+    type: account
+- id: social:hamrorabi
+  name: Rabi Lamichhane (RSP)
+  url: https://nitter.poast.org/hamrorabi
+  source_type: social
+  category: political
+  meta:
+    username: hamrorabi
+    type: account
+- id: social:ShahBalen
+  name: Balen Shah (RSP, former Mayor)
+  url: https://nitter.poast.org/ShahBalen
+  source_type: social
+  category: political
+  meta:
+    username: ShahBalen
+    type: account
+- id: social:KTnepal
+  name: Kamal Thapa (RPP)
+  url: https://nitter.poast.org/KTnepal
+  source_type: social
+  category: political
+  meta:
+    username: KTnepal
+    type: account
+- id: social:brb1954
+  name: Baburam Bhattarai (Socialist)
+  url: https://nitter.poast.org/brb1954
+  source_type: social
+  category: political
+  meta:
+    username: brb1954
+    type: account
+- id: social:yogesbhattarai
+  name: Yogesh Bhattarai (CPN-UML)
+  url: https://nitter.poast.org/yogesbhattarai
+  source_type: social
+  category: political
+  meta:
+    username: yogesbhattarai
+    type: account
+- id: social:BishnuRimal
+  name: Bishnu Rimal (CPN-UML)
+  url: https://nitter.poast.org/BishnuRimal
+  source_type: social
+  category: political
+  meta:
+    username: BishnuRimal
+    type: account
+- id: social:RabindraMishra
+  name: Rabindra Mishra (RPP)
+  url: https://nitter.poast.org/RabindraMishra
+  source_type: social
+  category: political
+  meta:
+    username: RabindraMishra
+    type: account
+- id: social:BinodKChaudhary
+  name: Binod Chaudhary (NC MP)
+  url: https://nitter.poast.org/BinodKChaudhary
+  source_type: social
+  category: political
+  meta:
+    username: BinodKChaudhary
+    type: account
+- id: social:SwarnimWagle
+  name: Swarnim Wagle (RSP Vice-Chair)
+  url: https://nitter.poast.org/SwarnimWagle
+  source_type: social
+  category: political
+  meta:
+    username: SwarnimWagle
+    type: account
+- id: social:NPSaudnc
+  name: NP Saud (NC, Former FM)
+  url: https://nitter.poast.org/NPSaudnc
+  source_type: social
+  category: political
+  meta:
+    username: NPSaudnc
+    type: account
+- id: social:NCPurnaKhadka
+  name: Purna Bahadur Khadka (NC)
+  url: https://nitter.poast.org/NCPurnaKhadka
+  source_type: social
+  category: political
+  meta:
+    username: NCPurnaKhadka
+    type: account
+- id: social:IshwarPokhrel
+  name: Ishwar Pokhrel (CPN-UML)
+  url: https://nitter.poast.org/IshwarPokhrel
+  source_type: social
+  category: political
+  meta:
+    username: IshwarPokhrel
+    type: account
+- id: social:GokulPBaskota
+  name: Gokul Prasad Baskota (CPN-UML)
+  url: https://nitter.poast.org/GokulPBaskota
+  source_type: social
+  category: political
+  meta:
+    username: GokulPBaskota
+    type: account
+- id: social:JSPrabhakar
+  name: Janardan Sharma (Maoist Centre)
+  url: https://nitter.poast.org/JSPrabhakar
+  source_type: social
+  category: political
+  meta:
+    username: JSPrabhakar
+    type: account
+- id: social:ram_partha
+  name: Ram Karki (Maoist Centre)
+  url: https://nitter.poast.org/ram_partha
+  source_type: social
+  category: political
+  meta:
+    username: ram_partha
+    type: account
+- id: social:sumnima_udas
+  name: Sumnima Udas (RSP)
+  url: https://nitter.poast.org/sumnima_udas
+  source_type: social
+  category: political
+  meta:
+    username: sumnima_udas
+    type: account
+- id: social:Kabindra99
+  name: Kabindra Burlakoti (RSP)
+  url: https://nitter.poast.org/Kabindra99
+  source_type: social
+  category: political
+  meta:
+    username: Kabindra99
+    type: account
+- id: social:Himalayabiraj
+  name: Biraj Bhakta Shrestha (RSP)
+  url: https://nitter.poast.org/Himalayabiraj
+  source_type: social
+  category: political
+  meta:
+    username: Himalayabiraj
+    type: account
+- id: social:RajendraLingden
+  name: Rajendra Lingden (RPP Chairman)
+  url: https://nitter.poast.org/RajendraLingden
+  source_type: social
+  category: political
+  meta:
+    username: RajendraLingden
+    type: account
+- id: social:DrPrakashChan1
+  name: Prakash Chandra Lohani (RPP)
+  url: https://nitter.poast.org/DrPrakashChan1
+  source_type: social
+  category: political
+  meta:
+    username: DrPrakashChan1
+    type: account
+- id: social:rlgolchha
+  name: Rajlakshmi Golchha (CPN-UML MP)
+  url: https://nitter.poast.org/rlgolchha
+  source_type: social
+  category: political
+  meta:
+    username: rlgolchha
+    type: account
+- id: social:brtdhl
+  name: Bharat Dahal (Commentator)
+  url: https://nitter.poast.org/brtdhl
+  source_type: social
+  category: political
+  meta:
+    username: brtdhl
+    type: account
+- id: social:MahabirPun
+  name: Mahabir Pun (Activist)
+  url: https://nitter.poast.org/MahabirPun
+  source_type: social
+  category: political
+  meta:
+    username: MahabirPun
+    type: account
+- id: social:HarkaSampang
+  name: Harka Sampang (Independent)
+  url: https://nitter.poast.org/HarkaSampang
+  source_type: social
+  category: political
+  meta:
+    username: HarkaSampang
+    type: account
+- id: social:party_swatantra
+  name: Rastriya Swatantra Party (Official)
+  url: https://nitter.poast.org/party_swatantra
+  source_type: social
+  category: political
+  meta:
+    username: party_swatantra
+    type: account
+- id: social:NepaliCongress
+  name: Nepali Congress (Official)
+  url: https://nitter.poast.org/NepaliCongress
+  source_type: social
+  category: political
+  meta:
+    username: NepaliCongress
+    type: account
+- id: social:CPNUML
+  name: CPN-UML (Official)
+  url: https://nitter.poast.org/CPNUML
+  source_type: social
+  category: political
+  meta:
+    username: CPNUML
+    type: account
+- id: social:MaoistCentre
+  name: Maoist Centre (Official)
+  url: https://nitter.poast.org/MaoistCentre
+  source_type: social
+  category: political
+  meta:
+    username: MaoistCentre
+    type: account
+- id: social:RPPNepal
+  name: RPP (Official)
+  url: https://nitter.poast.org/RPPNepal
+  source_type: social
+  category: political
+  meta:
+    username: RPPNepal
+    type: account
+- id: social:ratemyneta
+  name: Rate My Neta (Live Election Info)
+  url: https://nitter.poast.org/ratemyneta
+  source_type: social
+  category: political
+  meta:
+    username: ratemyneta
+    type: account
+- id: social:kathmandupost
+  name: The Kathmandu Post
+  url: https://nitter.poast.org/kathmandupost
+  source_type: social
+  category: news
+  meta:
+    username: kathmandupost
+    type: account
+- id: social:OnlineKhabar
+  name: Online Khabar
+  url: https://nitter.poast.org/OnlineKhabar
+  source_type: social
+  category: news
+  meta:
+    username: OnlineKhabar
+    type: account
+- id: social:BBCNepali
+  name: BBC Nepali
+  url: https://nitter.poast.org/BBCNepali
+  source_type: social
+  category: international
+  meta:
+    username: BBCNepali
+    type: account
+- id: social:MyRepublica
+  name: My Republica
+  url: https://nitter.poast.org/MyRepublica
+  source_type: social
+  category: news
+  meta:
+    username: MyRepublica
+    type: account
+- id: social:sudheerktm
+  name: Sudheer Sharma (Journalist)
+  url: https://nitter.poast.org/sudheerktm
+  source_type: social
+  category: journalist
+  meta:
+    username: sudheerktm
+    type: account
+- id: social:realpbhattarai
+  name: Pradip Bhattarai (Commentator)
+  url: https://nitter.poast.org/realpbhattarai
+  source_type: social
+  category: journalist
+  meta:
+    username: realpbhattarai
+    type: account
+- id: social:Vijaykumarko
+  name: Vijay Kumar Panday (TV Host)
+  url: https://nitter.poast.org/Vijaykumarko
+  source_type: social
+  category: journalist
+  meta:
+    username: Vijaykumarko
+    type: account
+- id: social:kundadixit
+  name: Kunda Dixit (Nepali Times)
+  url: https://nitter.poast.org/kundadixit
+  source_type: social
+  category: journalist
+  meta:
+    username: kundadixit
+    type: account
+- id: social:romangautam
+  name: Roman Gautam (Himal Southasian)
+  url: https://nitter.poast.org/romangautam
+  source_type: social
+  category: journalist
+  meta:
+    username: romangautam
+    type: account
+- id: social:bhadrarukum
+  name: Bhadra Sharma (NYT Nepal)
+  url: https://nitter.poast.org/bhadrarukum
+  source_type: social
+  category: journalist
+  meta:
+    username: bhadrarukum
+    type: account
+- id: social:kishorenepal
+  name: Kishore Nepal (Writer)
+  url: https://nitter.poast.org/kishorenepal
+  source_type: social
+  category: journalist
+  meta:
+    username: kishorenepal
+    type: account
+- id: social:RameshBhushal
+  name: Ramesh Bhushal (Science Reporter)
+  url: https://nitter.poast.org/RameshBhushal
+  source_type: social
+  category: journalist
+  meta:
+    username: RameshBhushal
+    type: account
+- id: social:KoshRKoirala
+  name: Kosh R Koirala (Republica Editor)
+  url: https://nitter.poast.org/KoshRKoirala
+  source_type: social
+  category: journalist
+  meta:
+    username: KoshRKoirala
+    type: account
+- id: social:NepaliComment
+  name: Dipesh Tripathi (Nepali Comment)
+  url: https://nitter.poast.org/NepaliComment
+  source_type: social
+  category: journalist
+  meta:
+    username: NepaliComment
+    type: account
+- id: social:rabirajbaral
+  name: Rabi Raj Baral (Journalist)
+  url: https://nitter.poast.org/rabirajbaral
+  source_type: social
+  category: journalist
+  meta:
+    username: rabirajbaral
+    type: account
+- id: social:Cvaanee
+  name: Shivanee Thapa Basnyat (News Editor)
+  url: https://nitter.poast.org/Cvaanee
+  source_type: social
+  category: journalist
+  meta:
+    username: Cvaanee
+    type: account
+- id: social:biswasktm
+  name: Biswas Baral (KTM Post Editor)
+  url: https://nitter.poast.org/biswasktm
+  source_type: social
+  category: journalist
+  meta:
+    username: biswasktm
+    type: account
+- id: social:shwetha19S
+  name: Shwetha Srikanthan (Himal Southasian)
+  url: https://nitter.poast.org/shwetha19S
+  source_type: social
+  category: journalist
+  meta:
+    username: shwetha19S
+    type: account
+- id: hashtag:kpoli
+  name: Nepal Politics
+  url: https://nitter.poast.org/search?q=%23kpoli
+  source_type: social
+  category: hashtag
+  meta:
+    tag: kpoli
+    type: hashtag
+- id: hashtag:NepalElection
+  name: Nepal Election 2082
+  url: https://nitter.poast.org/search?q=%23NepalElection
+  source_type: social
+  category: hashtag
+  meta:
+    tag: NepalElection
+    type: hashtag
+- id: hashtag:balen
+  name: Balen Shah
+  url: https://nitter.poast.org/search?q=%23balen
+  source_type: social
+  category: hashtag
+  meta:
+    tag: balen
+    type: hashtag
+- id: hashtag:NepalFlood
+  name: Nepal Flood
+  url: https://nitter.poast.org/search?q=%23NepalFlood
+  source_type: social
+  category: hashtag
+  meta:
+    tag: NepalFlood
+    type: hashtag
+- id: hashtag:NepalDisaster
+  name: Nepal Disaster
+  url: https://nitter.poast.org/search?q=%23NepalDisaster
+  source_type: social
+  category: hashtag
+  meta:
+    tag: NepalDisaster
+    type: hashtag
+- id: hashtag:NepalNews
+  name: Nepal News
+  url: https://nitter.poast.org/search?q=%23NepalNews
+  source_type: social
+  category: hashtag
+  meta:
+    tag: NepalNews
+    type: hashtag
+- id: hashtag:Kathmandu
+  name: Kathmandu
+  url: https://nitter.poast.org/search?q=%23Kathmandu
+  source_type: social
+  category: hashtag
+  meta:
+    tag: Kathmandu
+    type: hashtag
+- id: hashtag:नेपाल
+  name: Nepal (Nepali)
+  url: https://nitter.poast.org/search?q=%23नेपाल
+  source_type: social
+  category: hashtag
+  meta:
+    tag: नेपाल
+    type: hashtag
+- id: hashtag:काठमाडौं
+  name: Kathmandu (Nepali)
+  url: https://nitter.poast.org/search?q=%23काठमाडौं
+  source_type: social
+  category: hashtag
+  meta:
+    tag: काठमाडौं
+    type: hashtag
+- id: hashtag:नेपालनिर्वाचन
+  name: Nepal Election (Nepali)
+  url: https://nitter.poast.org/search?q=%23नेपालनिर्वाचन
+  source_type: social
+  category: hashtag
+  meta:
+    tag: नेपालनिर्वाचन
+    type: hashtag
+- id: hashtag:बाढी
+  name: Flood (Nepali)
+  url: https://nitter.poast.org/search?q=%23बाढी
+  source_type: social
+  category: hashtag
+  meta:
+    tag: बाढी
+    type: hashtag
+- id: hashtag:भूकम्प
+  name: Earthquake (Nepali)
+  url: https://nitter.poast.org/search?q=%23भूकम्प
+  source_type: social
+  category: hashtag
+  meta:
+    tag: भूकम्प
+    type: hashtag
+- id: hashtag:पहिरो
+  name: Landslide (Nepali)
+  url: https://nitter.poast.org/search?q=%23पहिरो
+  source_type: social
+  category: hashtag
+  meta:
+    tag: पहिरो
+    type: hashtag
+- id: hashtag:संसद
+  name: Parliament (Nepali)
+  url: https://nitter.poast.org/search?q=%23संसद
+  source_type: social
+  category: hashtag
+  meta:
+    tag: संसद
+    type: hashtag
+- id: hashtag:नेपालराजनीति
+  name: Nepal Politics (Nepali)
+  url: https://nitter.poast.org/search?q=%23नेपालराजनीति
+  source_type: social
+  category: hashtag
+  meta:
+    tag: नेपालराजनीति
+    type: hashtag
+- id: search:RSP Nepal election
+  name: RSP Election Coverage
+  url: https://nitter.poast.org/search?q=RSP Nepal election
+  source_type: social
+  category: search
+  meta:
+    query: RSP Nepal election
+    type: search
+- id: search:UML Nepal election
+  name: UML Election Coverage
+  url: https://nitter.poast.org/search?q=UML Nepal election
+  source_type: social
+  category: search
+  meta:
+    query: UML Nepal election
+    type: search
+- id: search:Nepali Congress election
+  name: NC Election Coverage
+  url: https://nitter.poast.org/search?q=Nepali Congress election
+  source_type: social
+  category: search
+  meta:
+    query: Nepali Congress election
+    type: search
+- id: search:Maoist Centre Nepal
+  name: Maoist Centre Coverage
+  url: https://nitter.poast.org/search?q=Maoist Centre Nepal
+  source_type: social
+  category: search
+  meta:
+    query: Maoist Centre Nepal
+    type: search
+- id: search:Nepal election results 2082
+  name: Nepal Election Results
+  url: https://nitter.poast.org/search?q=Nepal election results 2082
+  source_type: social
+  category: search
+  meta:
+    query: Nepal election results 2082
+    type: search
+- id: search:Nepal vote counting
+  name: Vote Counting Updates
+  url: https://nitter.poast.org/search?q=Nepal vote counting
+  source_type: social
+  category: search
+  meta:
+    query: Nepal vote counting
+    type: search
+- id: search:Balen Shah Jhapa
+  name: Balen Shah Updates
+  url: https://nitter.poast.org/search?q=Balen Shah Jhapa
+  source_type: social
+  category: search
+  meta:
+    query: Balen Shah Jhapa
+    type: search
+- id: search:KP Oli election
+  name: KP Oli Election
+  url: https://nitter.poast.org/search?q=KP Oli election
+  source_type: social
+  category: search
+  meta:
+    query: KP Oli election
+    type: search
+- id: search:Nepal election violence
+  name: Election Violence Reports
+  url: https://nitter.poast.org/search?q=Nepal election violence
+  source_type: social
+  category: search
+  meta:
+    query: Nepal election violence
+    type: search
+- id: search:Nepal booth capturing
+  name: Booth Capturing Reports
+  url: https://nitter.poast.org/search?q=Nepal booth capturing
+  source_type: social
+  category: search
+  meta:
+    query: Nepal booth capturing
+    type: search

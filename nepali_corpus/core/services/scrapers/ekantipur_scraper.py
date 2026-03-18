@@ -303,16 +303,17 @@ def main():
     asyncio.run(run(args))
 
 
-def fetch_raw_records(province: Optional[str] = None, national: bool = False) -> List[RawRecord]:
+def fetch_raw_records(province: Optional[str] = None, national: bool = False, max_pages: int = 5) -> List[RawRecord]:
     async def _fetch() -> List[RawRecord]:
         async with EkantipurScraper() as scraper:
             articles: List[EkantipurArticle] = []
+            max_per = max_pages * 20  # Rough estimate
             if province:
-                articles = await scraper.scrape_province(province, max_articles=50)
+                articles = await scraper.scrape_province(province, max_articles=max_per)
             elif national:
-                articles = await scraper.scrape_national(max_articles=50)
+                articles = await scraper.scrape_national(max_articles=max_per)
             else:
-                results = await scraper.scrape_all(max_per_province=30)
+                results = await scraper.scrape_all(max_per_province=max_per // 7)
                 for group in results.values():
                     articles.extend(group)
             return [article_to_raw(a) for a in articles]

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from typing import Dict, List, Optional
-
 import logging
+from typing import Dict, List, Optional
 
 import yaml
 
@@ -12,6 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def load_registry(path: str, groups: Optional[List[str]] = None) -> List[RegistryEntry]:
+    """Load government sources from a flattened SourceConfig YAML format."""
     try:
         with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)
@@ -21,52 +21,44 @@ def load_registry(path: str, groups: Optional[List[str]] = None) -> List[Registr
 
     entries: List[RegistryEntry] = []
     allowed = set(g.strip() for g in groups) if groups else None
-    matched_groups: set[str] = set()
 
-    def _rec_load(obj: Any, group_name: str):
-        if allowed is not None and group_name not in allowed:
-            # If not allowed, we don't recurse further if we explicitly filtered by groups
-            # However, usually groups are top-level. 
-            # We'll stick to a simple filter for now.
-            pass
+    if not isinstance(data, list):
+        logger.error(f"Expected flat list in {path}, got {type(data)}")
+        return []
 
-        if isinstance(obj, list):
-            if allowed is not None and group_name not in allowed:
-                return
-            if allowed is not None:
-                matched_groups.add(group_name)
-                
-            for item in obj:
-                if not isinstance(item, dict):
-                    continue
-                scraper_class = item.get("scraper_class", "") or ""
-                if scraper_class == "nrb_scraper":
-                    scraper_class = "regulatory"
-                
-                entries.append(
-                    RegistryEntry(
-                        source_id=item.get("id"),
-                        name=item.get("name"),
-                        name_ne=item.get("name_ne"),
-                        base_url=item.get("base_url"),
-                        endpoints=item.get("endpoints", {}),
-                        scraper_class=scraper_class,
-                        priority=item.get("priority", 3),
-                        poll_interval_mins=item.get("poll_interval_mins", 180),
-                    )
-                )
-        elif isinstance(obj, dict):
-            for k, v in obj.items():
-                if k in ["scraper_class", "url_pattern", "total_districts", "priority_districts", "poll_interval_mins"]:
-                    continue
-                _rec_load(v, k)
+    matched = False
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+            
+        group = item.get("category", "")
+        if allowed is not None and group not in allowed:
+            continue
+            
+        if allowed is not None:
+            matched = True
 
-    _rec_load(data, "root")
+        scraper_class = item.get("scraper_class", "") or ""
+        if scraper_class == "nrb_scraper":
+            scraper_class = "regulatory"
 
-    if allowed is not None and not matched_groups:
-        logger.warning("No registry groups matched: %s", sorted(allowed))
-    if allowed is not None and not entries:
+        entries.append(
+            RegistryEntry(
+                source_id=item.get("id"),
+                name=item.get("name"),
+                name_ne=item.get("name_ne"),
+                base_url=item.get("url"),  # new schema uses url, not base_url
+                endpoints=item.get("endpoints", {}),
+                scraper_class=scraper_class,
+                is_discovery=item.get("is_discovery", False),
+                priority=item.get("priority", 3),
+                poll_interval_mins=item.get("poll_interval_mins", 180),
+            )
+        )
+
+    if allowed is not None and not matched:
         logger.warning("No registry entries found for groups: %s", sorted(allowed))
+        
     return entries
 
 

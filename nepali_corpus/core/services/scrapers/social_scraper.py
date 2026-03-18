@@ -165,54 +165,49 @@ def fetch_raw_records(
     Load social sources from YAML and fetch tweets concurrently.
     Yields records as they are fetched.
     """
-    import yaml
-    from pathlib import Path
-    
-    if config_path is None:
-        # Default path
-        config_path = str(Path(__file__).parents[4] / "sources" / "social_sources.yaml")
-        
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            config = yaml.safe_load(f)
+        from nepali_corpus.core.services.scrapers.source_registry import SourceRegistry
+        from pathlib import Path
+        
+        # Load registry
+        if config_path is None:
+            config_dir = str(Path(__file__).parents[4] / "sources")
+        else:
+            config_dir = str(Path(config_path).parent)
+            
+        reg = SourceRegistry(config_dir)
+        reg.load_all()
+        social_sources = reg.list(source_type="social")
+        
     except Exception as e:
-        logger.error(f"Failed to load social config from {config_path}: {e}")
+        logger.error(f"Failed to load social config: {e}")
         return
         
-    # Get Nitter instances
-    instances = config.get("nitter_instances", [])
-    base_urls = [i.get("url") for i in instances if i.get("url")]
-    if not base_urls:
-        base_urls = ["https://nitter.poast.org", "https://nitter.privacydev.net"]
+    # Nitter instances are no longer in the sources file since it's flat.
+    # We use a default list of viable instances. In a real system you might 
+    # put these in a separate config or ENV var.
+    base_urls = ["https://nitter.poast.org", "https://nitter.privacydev.net"]
         
     scraper = NitterScraper(base_urls)
     tasks = []
     
     # Define tasks for parallel execution
-    # 1. Accounts
-    accounts = config.get("accounts", [])
-    for acc in accounts:
-        username = acc.get("username")
-        if username:
-            tasks.append((scraper.fetch_user_tweets, username))
+    for cfg in social_sources:
+        cat = cfg.category
+        if cat == "hashtag" and "meta" in cfg and "tag" in cfg.meta:
+            tasks.append((scraper.fetch_search_tweets, f"#{cfg.meta['tag']}", max_pages))
+        elif cat == "search" and "meta" in cfg and "query" in cfg.meta:
+            tasks.append((scraper.fetch_search_tweets, cfg.meta['query'], max_pages))
+        elif "meta" in cfg and "username" in cfg.meta:
+            tasks.append((scraper.fetch_user_tweets, cfg.meta['username'], max_pages))
             
-    # 2. Hashtags
-    hashtags = config.get("hashtags", [])
-    for tag in hashtags:
-        label = tag.get("tag")
-        if label:
-            tasks.append((scraper.fetch_search_tweets, f"#{label}"))
-            
-    # 3. Searches
-    searches = config.get("searches", [])
-    for item in searches:
-        query = item.get("query")
-        if query:
-            tasks.append((scraper.fetch_search_tweets, query))
+    if not tasks:
+        logger.warning("No valid social tasks found in config.")
+        return
             
     # Execute tasks concurrently
     with ThreadPoolExecutor(max_workers=5) as executor:
-        future_to_task = {executor.submit(func, arg, max_pages): (func, arg) for func, arg in tasks}
+        future_to_task = {executor.submit(func, arg, max_pages): (func, arg) for func, arg, max_pages in tasks}
         
         for future in as_completed(future_to_task):
             task_info = future_to_task[future]
