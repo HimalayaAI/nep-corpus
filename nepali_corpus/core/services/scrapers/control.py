@@ -19,6 +19,7 @@ from nepali_corpus.core.services.scrapers.pdf import PdfJob, extract_pdfs, HAS_P
 from nepali_corpus.core.services.scrapers import (
     dao_scraper,
     ekantipur_scraper,
+    gov_cdn_scraper,
     govt_scraper,
     news_rss_scraper,
     regulatory_scraper,
@@ -234,6 +235,15 @@ class ScrapeCoordinator:
         output_dir: Optional[str] = None,
         log_file: Optional[str] = None,
         num_sources: Optional[int] = None,
+        gov_cdn_enabled: bool = False,
+        gov_cdn_domain: str = "giwmscdntwo.gov.np",
+        gov_cdn_prefixes: Optional[List[str]] = None,
+        gov_cdn_discovery: str = "cc",
+        gov_cdn_cc_index: Optional[str] = None,
+        gov_cdn_miner_seeds: Optional[List[str]] = None,
+        gov_cdn_miner_pages: int = 200,
+        gov_cdn_miner_delay: float = 0.5,
+        gov_cdn_limit: Optional[int] = None,
     ) -> None:
         if self._task and not self._task.done():
             raise RuntimeError("Scraper already running")
@@ -261,6 +271,15 @@ class ScrapeCoordinator:
                 output_dir=output_dir,
                 log_file=log_file,
                 num_sources=num_sources,
+                gov_cdn_enabled=gov_cdn_enabled,
+                gov_cdn_domain=gov_cdn_domain,
+                gov_cdn_prefixes=gov_cdn_prefixes,
+                gov_cdn_discovery=gov_cdn_discovery,
+                gov_cdn_cc_index=gov_cdn_cc_index,
+                gov_cdn_miner_seeds=gov_cdn_miner_seeds,
+                gov_cdn_miner_pages=gov_cdn_miner_pages,
+                gov_cdn_miner_delay=gov_cdn_miner_delay,
+                gov_cdn_limit=gov_cdn_limit,
             )
         )
 
@@ -292,6 +311,15 @@ class ScrapeCoordinator:
         output_dir: Optional[str] = None,
         log_file: Optional[str] = None,
         num_sources: Optional[int] = None,
+        gov_cdn_enabled: bool = False,
+        gov_cdn_domain: str = "giwmscdntwo.gov.np",
+        gov_cdn_prefixes: Optional[List[str]] = None,
+        gov_cdn_discovery: str = "cc",
+        gov_cdn_cc_index: Optional[str] = None,
+        gov_cdn_miner_seeds: Optional[List[str]] = None,
+        gov_cdn_miner_pages: int = 200,
+        gov_cdn_miner_delay: float = 0.5,
+        gov_cdn_limit: Optional[int] = None,
     ) -> None:
         """Resume an interrupted run by re-dispatching pending jobs."""
         if self._task and not self._task.done():
@@ -317,6 +345,15 @@ class ScrapeCoordinator:
                 output_dir=output_dir,
                 log_file=log_file,
                 num_sources=num_sources,
+                gov_cdn_enabled=gov_cdn_enabled,
+                gov_cdn_domain=gov_cdn_domain,
+                gov_cdn_prefixes=gov_cdn_prefixes,
+                gov_cdn_discovery=gov_cdn_discovery,
+                gov_cdn_cc_index=gov_cdn_cc_index,
+                gov_cdn_miner_seeds=gov_cdn_miner_seeds,
+                gov_cdn_miner_pages=gov_cdn_miner_pages,
+                gov_cdn_miner_delay=gov_cdn_miner_delay,
+                gov_cdn_limit=gov_cdn_limit,
             )
         )
 
@@ -421,6 +458,15 @@ class ScrapeCoordinator:
         max_pages: Optional[int],
         govt_registry_path: Optional[str],
         govt_registry_groups: Optional[List[str]],
+        gov_cdn_enabled: bool = False,
+        gov_cdn_domain: str = "giwmscdntwo.gov.np",
+        gov_cdn_prefixes: Optional[List[str]] = None,
+        gov_cdn_discovery: str = "cc",
+        gov_cdn_cc_index: Optional[str] = None,
+        gov_cdn_miner_seeds: Optional[List[str]] = None,
+        gov_cdn_miner_pages: int = 200,
+        gov_cdn_miner_delay: float = 0.5,
+        gov_cdn_limit: Optional[int] = None,
         num_sources: Optional[int] = None,
     ) -> List[ScrapeJob]:
         """Build scrape job list from the unified SourceRegistry."""
@@ -519,6 +565,25 @@ class ScrapeCoordinator:
                     ScrapeJob(
                         name="dao", category="Gov", scraper_class="dao",
                         func=lambda: dao_scraper.fetch_raw_records(pages=max_pages or 50)
+                    )
+                )
+
+            if gov_cdn_enabled:
+                jobs.append(
+                    ScrapeJob(
+                        name=f"gov_cdn:{gov_cdn_domain}",
+                        category="Gov",
+                        scraper_class="gov_cdn",
+                        func=lambda: gov_cdn_scraper.fetch_raw_records(
+                            domain=gov_cdn_domain,
+                            prefixes=gov_cdn_prefixes,
+                            discovery=gov_cdn_discovery,
+                            cc_index=gov_cdn_cc_index,
+                            limit=gov_cdn_limit,
+                            miner_seeds=gov_cdn_miner_seeds,
+                            miner_max_pages=gov_cdn_miner_pages,
+                            miner_delay=gov_cdn_miner_delay,
+                        ),
                     )
                 )
 
@@ -622,6 +687,15 @@ class ScrapeCoordinator:
         pdf_output_dir: str,
         govt_registry_path: Optional[str],
         govt_registry_groups: Optional[List[str]],
+        gov_cdn_enabled: bool,
+        gov_cdn_domain: str,
+        gov_cdn_prefixes: Optional[List[str]],
+        gov_cdn_discovery: str,
+        gov_cdn_cc_index: Optional[str],
+        gov_cdn_miner_seeds: Optional[List[str]],
+        gov_cdn_miner_pages: int,
+        gov_cdn_miner_delay: float,
+        gov_cdn_limit: Optional[int],
         output_dir: Optional[str],
         log_file: Optional[str] = None,
         num_sources: Optional[int] = None,
@@ -640,7 +714,22 @@ class ScrapeCoordinator:
         # Preload visited URLs for fast in-memory dedup
         await self._load_visited_urls(session)
 
-        jobs = self._build_jobs(categories, max_pages, govt_registry_path, govt_registry_groups, num_sources=num_sources)
+        jobs = self._build_jobs(
+            categories,
+            max_pages,
+            govt_registry_path,
+            govt_registry_groups,
+            gov_cdn_enabled=gov_cdn_enabled,
+            gov_cdn_domain=gov_cdn_domain,
+            gov_cdn_prefixes=gov_cdn_prefixes,
+            gov_cdn_discovery=gov_cdn_discovery,
+            gov_cdn_cc_index=gov_cdn_cc_index,
+            gov_cdn_miner_seeds=gov_cdn_miner_seeds,
+            gov_cdn_miner_pages=gov_cdn_miner_pages,
+            gov_cdn_miner_delay=gov_cdn_miner_delay,
+            gov_cdn_limit=gov_cdn_limit,
+            num_sources=num_sources,
+        )
 
         # Sort by priority — high-value sources first
         jobs.sort(key=lambda j: getattr(j, '_priority', 3))
@@ -665,6 +754,9 @@ class ScrapeCoordinator:
             "num_sources": num_sources,
             "enrichment_batch_size": self._enrichment_batch_size,
             "source_timeout": self._source_timeout,
+            "gov_cdn_enabled": gov_cdn_enabled,
+            "gov_cdn_domain": gov_cdn_domain,
+            "gov_cdn_discovery": gov_cdn_discovery,
         }
         try:
             self._db_run_id = await session.create_pipeline_run(
@@ -747,6 +839,15 @@ class ScrapeCoordinator:
         pdf_output_dir: str,
         govt_registry_path: Optional[str],
         govt_registry_groups: Optional[List[str]],
+        gov_cdn_enabled: bool,
+        gov_cdn_domain: str,
+        gov_cdn_prefixes: Optional[List[str]],
+        gov_cdn_discovery: str,
+        gov_cdn_cc_index: Optional[str],
+        gov_cdn_miner_seeds: Optional[List[str]],
+        gov_cdn_miner_pages: int,
+        gov_cdn_miner_delay: float,
+        gov_cdn_limit: Optional[int],
         output_dir: Optional[str],
         log_file: Optional[str] = None,
         num_sources: Optional[int] = None,
@@ -772,7 +873,22 @@ class ScrapeCoordinator:
         await session.update_pipeline_run(run_id, status="running")
 
         # Build a name -> func map from all possible jobs (respecting num_sources filters if provided)
-        all_jobs = self._build_jobs(None, max_pages, govt_registry_path, govt_registry_groups, num_sources=num_sources)
+        all_jobs = self._build_jobs(
+            None,
+            max_pages,
+            govt_registry_path,
+            govt_registry_groups,
+            gov_cdn_enabled=gov_cdn_enabled,
+            gov_cdn_domain=gov_cdn_domain,
+            gov_cdn_prefixes=gov_cdn_prefixes,
+            gov_cdn_discovery=gov_cdn_discovery,
+            gov_cdn_cc_index=gov_cdn_cc_index,
+            gov_cdn_miner_seeds=gov_cdn_miner_seeds,
+            gov_cdn_miner_pages=gov_cdn_miner_pages,
+            gov_cdn_miner_delay=gov_cdn_miner_delay,
+            gov_cdn_limit=gov_cdn_limit,
+            num_sources=num_sources,
+        )
         func_map = {j.name: j.func for j in all_jobs}
 
         # Rebuild job list from pending DB records

@@ -1,0 +1,32 @@
+[project]
+name = "likhit"
+version = "0.1.1"
+description = "Nepali PDF-to-Markdown converter powered by MarkItDown"
+authors = [
+    { name = "notashwinii", email = "ashwinii.subedi@gmail.com" }
+]
+readme = "README.md"
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "fonttools>=4.47.0,<5.0.0",
+    "npttf2utf>=0.3.7,<1.0.0",
+    "pymupdf==1.27.2",
+    "pyyaml>=6.0,<7.0",
+    "markitdown[pdf,docx]==0.1.5",
+    "pyantiword>=0.1.2,<1.0.0"
+]
+
+[project.scripts]
+likhit = "likhit.cli:main"
+
+[tool.poetry]
+packages = [{ include = "likhit", from = "src" }]
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+ruff = "^0.11.0"
+black = "^25.0.0"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

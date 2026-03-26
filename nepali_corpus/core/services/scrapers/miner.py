@@ -4,8 +4,9 @@ import gzip
 import logging
 import re
 from collections import Counter, deque
-from typing import List, Set, Optional, Dict
-from urllib.parse import urljoin, urlparse, parse_qsl, urlencode, urlunparse
+from itertools import islice
+from typing import List, Set, Optional, Dict, Iterable
+from urllib.parse import urljoin, urlparse, parse_qs, parse_qsl, urlencode, urlunparse
 import xml.etree.ElementTree as ET
 
 from .scraper_base import ScraperBase
@@ -151,6 +152,43 @@ class DiscoveryMiner(ScraperBase):
             f"Discovery finished for {self.base_url}. "
             f"Total unique URLs found: {len(reported_urls)}"
         )
+
+    @staticmethod
+    def summarize_pdf_patterns(urls: Iterable[str], sample_size: int = 100) -> Dict[str, List[tuple[str, int]]]:
+        """Summarize common PDF URL patterns from a URL iterable."""
+        prefix_counts: Counter[str] = Counter()
+        domain_counts: Counter[str] = Counter()
+        query_key_counts: Counter[str] = Counter()
+        samples = 0
+
+        for url in islice(urls, 0, sample_size * 5):  # scan a bit more to get pdfs
+            if samples >= sample_size:
+                break
+            if not url or ".pdf" not in url.lower():
+                continue
+            samples += 1
+            parsed = urlparse(url)
+            if parsed.netloc:
+                domain_counts[parsed.netloc.lower()] += 1
+
+            path = parsed.path or ""
+            parts = [p for p in path.split("/") if p]
+            if parts:
+                max_depth = min(4, len(parts))
+                for depth in range(1, max_depth + 1):
+                    prefix = "/" + "/".join(parts[:depth]) + "/*.pdf"
+                    prefix_counts[prefix] += 1
+
+            if parsed.query:
+                for key in parse_qs(parsed.query).keys():
+                    query_key_counts[key] += 1
+
+        return {
+            "samples": [("pdf_samples", samples)],
+            "prefixes": prefix_counts.most_common(20),
+            "domains": domain_counts.most_common(10),
+            "query_keys": query_key_counts.most_common(10),
+        }
 
     # ── robots.txt ──────────────────────────────────────────────────────
 
@@ -551,7 +589,12 @@ class DiscoveryMiner(ScraperBase):
         common_segments = [
             "news",
             "notices",
+            "notice",
+            "notice-news",
+            "notifications",
             "press-release",
+            "press-releases",
+            "press",
             "circulars",
             "archives",
             "latest",
@@ -565,6 +608,17 @@ class DiscoveryMiner(ScraperBase):
             "category/interview",
             "category/economy",
             "category/world",
+            "category/notice-news",
+            "category/notice",
+            "category/notices",
+            "category/notifications",
+            "category/press-release",
+            "category/press",
+            "category/publications",
+            "category/publication",
+            "category/report",
+            "category/reports",
+            "category/intelligence",
             "nation",
             "province",
             "main-news",
@@ -588,6 +642,12 @@ class DiscoveryMiner(ScraperBase):
             "detail",
             "node",
             "content",
+            "content/press-release",
+            "content/notice",
+            "content/notifications",
+            "content/report",
+            "content/reports",
+            "content/publications",
             # Additional common Nepali segments
             "desh",
             "pradesh",
@@ -601,6 +661,29 @@ class DiscoveryMiner(ScraperBase):
             "editorial",
             "feature",
             "special",
+            "documents",
+            "document",
+            "publications",
+            "publication",
+            "reports",
+            "report",
+            "downloads",
+            "download",
+            "resources",
+            "resource",
+            "library",
+            "gazette",
+            "acts",
+            "laws",
+            "legal",
+            "policy",
+            "policies",
+            "regulation",
+            "regulations",
+            "journal",
+            "prashasan-journal",
+            "np/documents",
+            "np/publications",
         ]
 
         patterns = [f"/{s}" for s in common_segments]
@@ -770,6 +853,10 @@ class DiscoveryMiner(ScraperBase):
         if not path or path == "/":
             return False
 
+        # Always allow PDFs (even if they live in upload paths)
+        if path.endswith(".pdf"):
+            return True
+
         # Ignore common technical paths
         blacklist = [
             "/category/",
@@ -864,6 +951,25 @@ class DiscoveryMiner(ScraperBase):
                 "top-stories",
                 "main-news",
                 "notices",
+                "notice",
+                "notice-news",
+                "notifications",
+                "press-release",
+                "press",
+                "publications",
+                "publication",
+                "documents",
+                "document",
+                "reports",
+                "report",
+                "downloads",
+                "download",
+                "resources",
+                "gazette",
+                "acts",
+                "laws",
+                "journal",
+                "prashasan-journal",
                 "samachar",
                 "nation",
                 "province",

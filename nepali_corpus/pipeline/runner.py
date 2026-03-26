@@ -11,6 +11,7 @@ from ..core.utils.normalize import normalize_record
 from ..core.services.scrapers import (
     dao_scraper,
     ekantipur_scraper,
+    gov_cdn_scraper,
     govt_scraper,
     news_rss_scraper,
     social_scraper,
@@ -27,16 +28,29 @@ def ingest_sources_iter(
     rss: bool = True,
     ekantipur: bool = True,
     govt: bool = True,
+    gov_cdn: bool = False,
     dao: bool = True,
     sources: Optional[List[str]] = None,
     govt_registry_path: Optional[str] = None,
     govt_registry_groups: Optional[List[str]] = None,
     govt_pages: int = 3,
     social: bool = True,
+    gov_cdn_domain: str = "giwmscdntwo.gov.np",
+    gov_cdn_prefixes: Optional[List[str]] = None,
+    gov_cdn_discovery: str = "cc",
+    gov_cdn_cc_index: Optional[str] = None,
+    gov_cdn_miner_seeds: Optional[List[str]] = None,
+    gov_cdn_miner_pages: int = 200,
+    gov_cdn_miner_delay: float = 0.5,
+    gov_cdn_limit: Optional[int] = None,
 ) -> Iterable[RawRecord]:
     """
     Iterator version of ingest_sources.
     """
+    if isinstance(sources, str):
+        sources = [s.strip() for s in sources.split(",") if s.strip()]
+    if isinstance(govt_registry_groups, str):
+        govt_registry_groups = [s.strip() for s in govt_registry_groups.split(",") if s.strip()]
     if sources is not None:
         normalized: set[str] = set()
         for src in sources:
@@ -52,6 +66,8 @@ def ingest_sources_iter(
                 normalized.add("ekantipur")
             elif key in ("govt", "government"):
                 normalized.add("govt")
+            elif key in ("gov_cdn", "govcdn", "gov-pdf", "govpdf"):
+                normalized.add("gov_cdn")
             elif key in ("dao", "district"):
                 normalized.add("dao")
             elif key in ("social", "twitter", "nitter"):
@@ -60,6 +76,7 @@ def ingest_sources_iter(
             rss = "rss" in normalized
             ekantipur = "ekantipur" in normalized
             govt = "govt" in normalized
+            gov_cdn = "gov_cdn" in normalized
             # Include DAO by default only when no govt registry groups are specified.
             include_dao_default = not (govt_registry_groups and len(govt_registry_groups) > 0)
             dao = "dao" in normalized or (govt and include_dao_default)
@@ -70,6 +87,18 @@ def ingest_sources_iter(
             yield rec
     if ekantipur:
         for rec in ekantipur_scraper.fetch_raw_records():
+            yield rec
+    if gov_cdn:
+        for rec in gov_cdn_scraper.fetch_raw_records(
+            domain=gov_cdn_domain,
+            prefixes=gov_cdn_prefixes,
+            discovery=gov_cdn_discovery,
+            cc_index=gov_cdn_cc_index,
+            limit=gov_cdn_limit,
+            miner_seeds=gov_cdn_miner_seeds,
+            miner_max_pages=gov_cdn_miner_pages,
+            miner_delay=gov_cdn_miner_delay,
+        ):
             yield rec
     if govt:
         registry_entries = None
@@ -93,24 +122,42 @@ def ingest_sources(
     rss: bool = True,
     ekantipur: bool = True,
     govt: bool = True,
+    gov_cdn: bool = False,
     dao: bool = True,
     social: bool = True,
     sources: Optional[List[str]] = None,
     govt_registry_path: Optional[str] = None,
     govt_registry_groups: Optional[List[str]] = None,
     govt_pages: int = 3,
+    gov_cdn_domain: str = "giwmscdntwo.gov.np",
+    gov_cdn_prefixes: Optional[List[str]] = None,
+    gov_cdn_discovery: str = "cc",
+    gov_cdn_cc_index: Optional[str] = None,
+    gov_cdn_miner_seeds: Optional[List[str]] = None,
+    gov_cdn_miner_pages: int = 200,
+    gov_cdn_miner_delay: float = 0.5,
+    gov_cdn_limit: Optional[int] = None,
 ) -> List[RawRecord]:
     return list(
         ingest_sources_iter(
             rss=rss,
             ekantipur=ekantipur,
             govt=govt,
+            gov_cdn=gov_cdn,
             dao=dao,
             social=social,
             sources=sources,
             govt_registry_path=govt_registry_path,
             govt_registry_groups=govt_registry_groups,
             govt_pages=govt_pages,
+            gov_cdn_domain=gov_cdn_domain,
+            gov_cdn_prefixes=gov_cdn_prefixes,
+            gov_cdn_discovery=gov_cdn_discovery,
+            gov_cdn_cc_index=gov_cdn_cc_index,
+            gov_cdn_miner_seeds=gov_cdn_miner_seeds,
+            gov_cdn_miner_pages=gov_cdn_miner_pages,
+            gov_cdn_miner_delay=gov_cdn_miner_delay,
+            gov_cdn_limit=gov_cdn_limit,
         )
     )
 
@@ -191,6 +238,7 @@ def enrich_records(
                 data,
                 content_type=content_type,
                 url=rec.url,
+                source_id=rec.source_id,
                 ocr_enabled=ocr_enabled,
                 pdf_enabled=pdf_enabled,
             ) if data else None

@@ -21,4 +21,16 @@ def fetch_regulatory(*args, **kwargs):
     from .regulatory_scraper import fetch_raw_records
     return fetch_raw_records(*args, **kwargs)
 
-__all__ = ["fetch_news_rss", "fetch_ekantipur", "fetch_govt", "fetch_dao", "fetch_regulatory"]
+def fetch_gov_cdn(*args, **kwargs):
+    from .gov_cdn_scraper import fetch_raw_records
+    return fetch_raw_records(*args, **kwargs)
+
+
+__all__ = [
+    "fetch_news_rss",
+    "fetch_ekantipur",
+    "fetch_govt",
+    "fetch_dao",
+    "fetch_regulatory",
+    "fetch_gov_cdn",
+]

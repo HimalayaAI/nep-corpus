@@ -55,6 +55,14 @@ def cmd_ingest(args: argparse.Namespace) -> None:
                 govt_registry_path=args.govt_registry,
                 govt_registry_groups=args.govt_groups,
                 govt_pages=args.govt_pages,
+                gov_cdn_domain=args.gov_cdn_domain,
+                gov_cdn_prefixes=args.gov_cdn_prefix,
+                gov_cdn_discovery=args.gov_cdn_discovery,
+                gov_cdn_cc_index=args.gov_cdn_cc_index,
+                gov_cdn_miner_seeds=args.gov_cdn_miner_seed,
+                gov_cdn_miner_pages=args.gov_cdn_miner_pages,
+                gov_cdn_miner_delay=args.gov_cdn_miner_delay,
+                gov_cdn_limit=args.gov_cdn_limit,
             ):
                 writer.write(rec)
                 # Incremental DB Sync
@@ -168,6 +176,14 @@ def cmd_all(args: argparse.Namespace) -> None:
                 govt_registry_path=args.govt_registry,
                 govt_registry_groups=args.govt_groups,
                 govt_pages=args.govt_pages,
+                gov_cdn_domain=args.gov_cdn_domain,
+                gov_cdn_prefixes=args.gov_cdn_prefix,
+                gov_cdn_discovery=args.gov_cdn_discovery,
+                gov_cdn_cc_index=args.gov_cdn_cc_index,
+                gov_cdn_miner_seeds=args.gov_cdn_miner_seed,
+                gov_cdn_miner_pages=args.gov_cdn_miner_pages,
+                gov_cdn_miner_delay=args.gov_cdn_miner_delay,
+                gov_cdn_limit=args.gov_cdn_limit,
             ):
                 writer.write(rec)
                 all_records.append(rec)
@@ -297,6 +313,15 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
                     output_dir=output_dir,
                     log_file=log_file,
                     num_sources=args.num_sources,
+                    gov_cdn_enabled=args.gov_cdn,
+                    gov_cdn_domain=args.gov_cdn_domain,
+                    gov_cdn_prefixes=args.gov_cdn_prefix,
+                    gov_cdn_discovery=args.gov_cdn_discovery,
+                    gov_cdn_cc_index=args.gov_cdn_cc_index,
+                    gov_cdn_miner_seeds=args.gov_cdn_miner_seed,
+                    gov_cdn_miner_pages=args.gov_cdn_miner_pages,
+                    gov_cdn_miner_delay=args.gov_cdn_miner_delay,
+                    gov_cdn_limit=args.gov_cdn_limit,
                 )
             else:
                 await coordinator.start(
@@ -311,6 +336,15 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
                     output_dir=output_dir,
                     log_file=log_file,
                     num_sources=args.num_sources,
+                    gov_cdn_enabled=args.gov_cdn,
+                    gov_cdn_domain=args.gov_cdn_domain,
+                    gov_cdn_prefixes=args.gov_cdn_prefix,
+                    gov_cdn_discovery=args.gov_cdn_discovery,
+                    gov_cdn_cc_index=args.gov_cdn_cc_index,
+                    gov_cdn_miner_seeds=args.gov_cdn_miner_seed,
+                    gov_cdn_miner_pages=args.gov_cdn_miner_pages,
+                    gov_cdn_miner_delay=args.gov_cdn_miner_delay,
+                    gov_cdn_limit=args.gov_cdn_limit,
                 )
 
             # Wait for the coordinator task to finish
@@ -491,6 +525,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Max pages per govt endpoint (default: 3)",
     )
     p_ingest.add_argument("--gzip", action="store_true", help="Write .jsonl.gz output")
+    p_ingest.add_argument("--gov-cdn-domain", default="giwmscdntwo.gov.np")
+    p_ingest.add_argument("--gov-cdn-prefix", action="append", help="Gov CDN path prefix filter (repeatable)")
+    p_ingest.add_argument("--gov-cdn-discovery", choices=["cc", "miner"], default="cc")
+    p_ingest.add_argument("--gov-cdn-cc-index", help="Common Crawl index ID (default: latest)")
+    p_ingest.add_argument("--gov-cdn-miner-seed", action="append", help="Seed URLs for discovery miner (repeatable)")
+    p_ingest.add_argument("--gov-cdn-miner-pages", type=int, default=200)
+    p_ingest.add_argument("--gov-cdn-miner-delay", type=float, default=0.5)
+    p_ingest.add_argument("--gov-cdn-limit", type=int, help="Limit number of discovered gov CDN URLs")
     p_ingest.set_defaults(func=cmd_ingest)
 
     p_enrich = sub.add_parser("enrich", help="Fetch full text and write enriched JSONL")
@@ -558,6 +600,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_all.add_argument("--cleaned-out", default="data/enriched/cleaned.jsonl")
     p_all.add_argument("--dedup-out", default="data/enriched/dedup.jsonl")
     p_all.add_argument("--final-out", default="data/final/training.jsonl")
+    p_all.add_argument("--gov-cdn-domain", default="giwmscdntwo.gov.np")
+    p_all.add_argument("--gov-cdn-prefix", action="append", help="Gov CDN path prefix filter (repeatable)")
+    p_all.add_argument("--gov-cdn-discovery", choices=["cc", "miner"], default="cc")
+    p_all.add_argument("--gov-cdn-cc-index", help="Common Crawl index ID (default: latest)")
+    p_all.add_argument("--gov-cdn-miner-seed", action="append", help="Seed URLs for discovery miner (repeatable)")
+    p_all.add_argument("--gov-cdn-miner-pages", type=int, default=200)
+    p_all.add_argument("--gov-cdn-miner-delay", type=float, default=0.5)
+    p_all.add_argument("--gov-cdn-limit", type=int, help="Limit number of discovered gov CDN URLs")
     p_all.set_defaults(func=cmd_all)
 
     # --- New coordinator subcommand ---
@@ -617,6 +667,15 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Enable image OCR (slow, default: False)")
     p_coord.add_argument("--pdf", action="store_true", default=False,
                          help="Enable embedded PDF extraction (default: False)")
+    p_coord.add_argument("--gov-cdn", action="store_true", default=False, help="Enable gov CDN PDF discovery job")
+    p_coord.add_argument("--gov-cdn-domain", default="giwmscdntwo.gov.np")
+    p_coord.add_argument("--gov-cdn-prefix", action="append", help="Gov CDN path prefix filter (repeatable)")
+    p_coord.add_argument("--gov-cdn-discovery", choices=["cc", "miner"], default="cc")
+    p_coord.add_argument("--gov-cdn-cc-index", help="Common Crawl index ID (default: latest)")
+    p_coord.add_argument("--gov-cdn-miner-seed", action="append", help="Seed URLs for discovery miner (repeatable)")
+    p_coord.add_argument("--gov-cdn-miner-pages", type=int, default=200)
+    p_coord.add_argument("--gov-cdn-miner-delay", type=float, default=0.5)
+    p_coord.add_argument("--gov-cdn-limit", type=int, help="Limit number of discovered gov CDN URLs")
     p_coord.set_defaults(func=cmd_coordinator)
 
     # --- Rerun-failed subcommand ---

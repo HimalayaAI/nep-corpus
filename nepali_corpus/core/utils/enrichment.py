@@ -5,8 +5,10 @@ import logging
 import os
 import re
 import sys
+import tempfile
 import time
 import urllib3
+from pathlib import Path
 from typing import Optional, Tuple
 from urllib.parse import urlparse, unquote
 
@@ -21,6 +23,15 @@ from .boilerplate import clean_extracted_text
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 logger = logging.getLogger(__name__)
+
+LIKIT_SRC = Path(__file__).resolve().parents[3] / "tools" / "likhit" / "src"
+if LIKIT_SRC.exists() and str(LIKIT_SRC) not in sys.path:
+    sys.path.insert(0, str(LIKIT_SRC))
+
+try:
+    from likhit.core import convert as likhit_convert  # type: ignore
+except Exception:
+    likhit_convert = None
 
 # ── Global Noise Selectors (Aggressive Sanitization) ───────────────────
 
@@ -162,6 +173,7 @@ def extract_text(
     data: bytes,
     content_type: str,
     url: Optional[str] = None,
+    source_id: Optional[str] = None,
     use_trafilatura: bool = True,
     ocr_enabled: bool = True,
     pdf_enabled: bool = True,
@@ -185,6 +197,22 @@ def extract_text(
         ctype = refined_type
 
     if ctype == "pdf":
+        if likhit_convert is not None:
+            try:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                    tmp.write(data)
+                    tmp_path = tmp.name
+                try:
+                    extracted = (likhit_convert(tmp_path) or "").strip()
+                finally:
+                    try:
+                        os.unlink(tmp_path)
+                    except Exception:
+                        pass
+                if extracted:
+                    return extracted
+            except Exception as exc:
+                logger.warning("Likhit extraction failed for %s: %s", url, exc)
         if not HAS_PYMUPDF:
             logger.warning(f"Skipping PDF {url} because PyMuPDF is not installed")
             return ""
