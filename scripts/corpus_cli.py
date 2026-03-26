@@ -625,7 +625,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_coord.add_argument("--workers", type=int, default=4, help="Parallel workers (default: 4)")
     p_coord.add_argument("--max-pages", type=int, default=3, help="Max pages per source (default: 3)")
-    p_coord.add_argument("--govt-registry", help="Path to sources/govt_sources_registry.yaml")
+    p_coord.add_argument("--govt-registry", help="Path to govt registry (YAML/JSONL)")
     p_coord.add_argument(
         "--govt-groups",
         help="Comma-separated groups from registry",
@@ -754,9 +754,15 @@ def main() -> None:
     ):
         args.sources = ["govt"]
     if getattr(args, "govt_groups", None) and not getattr(args, "govt_registry", None):
-        default_registry = os.path.join("sources", "govt_sources_registry.yaml")
-        if os.path.exists(default_registry):
-            args.govt_registry = default_registry
+        # Auto-pick discovery JSONL if requested, else fallback to YAML registry.
+        if "gov_discovery" in args.govt_groups:
+            discovery_registry = os.path.join("sources", "gov_discovery_registry.jsonl")
+            if os.path.exists(discovery_registry):
+                args.govt_registry = discovery_registry
+        if not getattr(args, "govt_registry", None):
+            default_registry = os.path.join("sources", "govt_sources_registry.yaml")
+            if os.path.exists(default_registry):
+                args.govt_registry = default_registry
     args.func(args)
 
 
