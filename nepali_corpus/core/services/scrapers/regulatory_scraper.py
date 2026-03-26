@@ -36,7 +36,6 @@ KEYWORDS = (
 )
 
 BLACKLIST_EXT = (
-    ".pdf",
     ".doc",
     ".docx",
     ".xls",
@@ -76,6 +75,8 @@ def _is_candidate(url: str, text: str) -> bool:
     if not url:
         return False
     lower_url = url.lower()
+    if lower_url.endswith(".pdf"):
+        return True
     if any(lower_url.endswith(ext) for ext in BLACKLIST_EXT):
         return False
     if lower_url.startswith("mailto:") or lower_url.startswith("javascript:"):

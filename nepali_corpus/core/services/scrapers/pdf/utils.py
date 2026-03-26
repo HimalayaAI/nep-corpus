@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import logging
+import os
+import sys
+import tempfile
+from pathlib import Path
 from typing import List
 
 try:
@@ -11,7 +15,32 @@ except Exception:
 
 logger = logging.getLogger(__name__)
 
+LIKIT_SRC = Path(__file__).resolve().parents[5] / "tools" / "likhit" / "src"
+if LIKIT_SRC.exists() and str(LIKIT_SRC) not in sys.path:
+    sys.path.insert(0, str(LIKIT_SRC))
+
+try:
+    from likhit.core import convert as likhit_convert  # type: ignore
+except Exception:
+    likhit_convert = None
+
 def _extract_text_from_pdf(pdf_bytes: bytes) -> str:
+    if likhit_convert is not None:
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+                tmp.write(pdf_bytes)
+                tmp_path = tmp.name
+            try:
+                extracted = (likhit_convert(tmp_path) or "").strip()
+            finally:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+            if extracted:
+                return extracted
+        except Exception as e:
+            logger.warning(f"Likhit extraction failed: {e}")
     if not HAS_PYMUPDF:
         raise RuntimeError("PyMuPDF (fitz) is required for PDF extraction")
     try:
