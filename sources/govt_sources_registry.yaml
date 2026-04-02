@@ -721,3 +721,14 @@
   poll_interval_mins: 120
   meta:
     group: metropolitan
+- id: tarkeshwor
+  name: Tarkeshwor Municiplaity
+  url: https://tarakeshwormun.gov.np
+  source_type: government
+  category: Municiplaity
+  name_ne: तारकेश्वर नगरपालिका
+  scraper_class: municipality_scraper
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: Municiplaity
