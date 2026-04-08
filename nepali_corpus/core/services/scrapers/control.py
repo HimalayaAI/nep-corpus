@@ -154,6 +154,7 @@ class ScrapeCoordinator:
             max_concurrent=max_concurrent,
         )
         self._checkpoint_task: Optional[asyncio.Task] = None
+        self._low_yield_sources: Set[str] = set()  # Sources abandoned due to low save rate
 
     def is_running(self) -> bool:
         return self.state.running
@@ -841,6 +842,9 @@ class ScrapeCoordinator:
             """Helper to bridge threadpool batches back to main loop."""
             if self._stop_event.is_set():
                 return
+            source_id = records[0].source_id if records else j.name
+            if source_id in self._low_yield_sources:
+                return
             await self._handle_results(j, records, session, writer, pdf_enabled, pdf_output_dir, pdf_jobs)
 
         def _run_job(j: ScrapeJob):
@@ -987,6 +991,17 @@ class ScrapeCoordinator:
                     except Exception:
                         pass
 
+    def _check_low_yield(self, source_id: str, min_crawled: int = 1000, min_rate: float = 0.05) -> bool:
+        """Return True if this source has poor save rate and should be abandoned."""
+        stats = self.state.source_stats.get(source_id)
+        if not stats:
+            return False
+        crawled = stats.get("crawled", 0)
+        saved = stats.get("saved", 0)
+        if crawled >= min_crawled and (saved / crawled) < min_rate:
+            return True
+        return False
+
     async def _handle_results(
         self,
         job: ScrapeJob,
@@ -999,6 +1014,10 @@ class ScrapeCoordinator:
     ) -> None:
         """Centralized processing for scraped records."""
         if not records:
+            return
+
+        source_id = records[0].source_id if records else job.name
+        if source_id in self._low_yield_sources:
             return
 
         saved_records = []
@@ -1040,6 +1059,15 @@ class ScrapeCoordinator:
 
         self.state.urls_crawled += seen_count
         self.state.docs_saved += len(saved_records)
+
+        # Check if this source has a poor yield rate and should be abandoned
+        if self._check_low_yield(source_id):
+            self._low_yield_sources.add(source_id)
+            logger.warning(
+                f"Low yield: abandoning '{source_id}' "
+                f"(crawled={self.state.source_stats[source_id]['crawled']}, "
+                f"saved={self.state.source_stats[source_id]['saved']})"
+            )
 
         # Add to enrichment buffer (batch-triggered)
         if saved_records:
