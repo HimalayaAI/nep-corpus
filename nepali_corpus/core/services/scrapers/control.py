@@ -991,7 +991,7 @@ class ScrapeCoordinator:
                     except Exception:
                         pass
 
-    def _check_low_yield(self, source_id: str, min_crawled: int = 500, min_rate: float = 0.05) -> bool:
+    def _check_low_yield(self, source_id: str, min_crawled: int = 1000, min_rate: float = 0.05) -> bool:
         """Return True if this source has poor save rate and should be abandoned."""
         stats = self.state.source_stats.get(source_id)
         if not stats:
