@@ -852,6 +852,8 @@ class ScrapeCoordinator:
             writer.flush()
             writer.close()
 
+        # Match the normal run path so buffered records are not stranded on resume.
+        await self._maybe_flush_enrichment(session, force=True)
         await self._drain_enrichment_tasks()
 
         # --- Enrichment Phase (for any items that need it) ---
@@ -1052,11 +1054,11 @@ class ScrapeCoordinator:
                     seen_set.add(u)
 
         new_records = []
+        new_urls = []
         for record in records:
             self.state.record_source(record.source_id, crawled=1)
             if self._visited_urls.contains(record.url) or record.url in seen_set:
                 continue
-            self._visited_urls.add(record.url)
 
             if pdf_enabled and record.url.lower().endswith(".pdf"):
                 pdf_jobs.append(PdfJob(
@@ -1068,6 +1070,7 @@ class ScrapeCoordinator:
                 continue
 
             new_records.append(record)
+            new_urls.append(record.url)
 
         if new_records:
             try:
@@ -1078,11 +1081,13 @@ class ScrapeCoordinator:
 
             # Mark URLs as visited only after successful DB write
             try:
-                new_urls = [r.url for r in new_records]
                 await session.mark_urls_batch(new_urls)
             except AttributeError:
                 for u in new_urls:
                     await session.mark_url(u)
+
+            for url in new_urls:
+                self._visited_urls.add(url)
 
             for record in new_records:
                 writer.write(record)

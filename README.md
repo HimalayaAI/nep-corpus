@@ -19,7 +19,14 @@ Recent improvements (benchmarked):
 - **5.5x faster tracking** — Atomic counter vs O(n²) scan (16.58ms vs 91.71ms)
 - **2.3x faster normalization** — Parallel processing with ProcessPool (278.25ms vs 646.97ms)
 - **Rust URL dedup** — Fast URL checking with BLAKE3 hashing (no GIL under concurrent load)
-- **Reliable resume and concurrency control** — Improved run stability and parallel execution
+
+### Pipeline Stability Fixes
+
+- **Resume flow now matches normal run** — Flush/drain/enrichment order is consistent
+- **Force-flush enrichment buffer on resume** — Prevents stranded records
+- **Mark URLs visited only after DB success** — DB write failures don't corrupt visited state
+- **Constrained enrichment workers** — Single worker per enrichment task avoids worker explosion
+- **Atomic URL tracking** — Store → Mark → Memory ordering prevents duplicates/misses
 
 ## Source Coverage
 

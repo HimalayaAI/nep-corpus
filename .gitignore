@@ -1,13 +1,12 @@
-data/
-cat > .gitignore << 'EOF'
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 
-# Data folder
+# Data and benchmarks folders
 data/
+benchmarks/
 
 # Environments
 .env
@@ -53,8 +52,7 @@ htmlcov/
 
 # OS
 Thumbs.db
-.DS_Store
-EOF
-data/
-benchmarks/
+
+# Rust
 rust/url_dedup/target/
+rust/*/Cargo.lock
