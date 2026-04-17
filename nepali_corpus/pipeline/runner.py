@@ -169,8 +169,8 @@ logger = logging.getLogger(__name__)
 def enrich_records(
     records: Iterable[RawRecord],
     cache_dir: str,
-    min_enrich_len: int = 1000,
-    max_workers: int = 10,
+    min_enrich_len: int = 0,
+    max_workers: int = 20,
     ocr_enabled: bool = True,
     pdf_enabled: bool = True,
 ) -> List[Tuple[RawRecord, Optional[str]]]:
@@ -185,7 +185,7 @@ def enrich_records(
 
     def _enrich_one(index: int, rec: RawRecord):
         text = rec.content or rec.summary or ""
-        if len(text) >= min_enrich_len:
+        if min_enrich_len > 0 and len(text) >= min_enrich_len:
             enriched[index] = (rec, None)
         else:
             try:

@@ -318,7 +318,7 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
                 await asyncio.sleep(1)
 
         except KeyboardInterrupt:
-            print("\n⚠️  KeyboardInterrupt — flushing...")
+            print("\n  KeyboardInterrupt — flushing...")
             coordinator.request_shutdown()
             await asyncio.sleep(1)
         finally:
@@ -610,9 +610,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_coord.add_argument("--enrichment-workers", type=int, default=10,
                          dest="enrichment_workers",
                          help="Parallel workers for content extraction (default: 10)")
-    p_coord.add_argument("--skip-successful", action="store_true",
-                         dest="skip_successful",
-                         help="Skip only URLs that already have training data (retry failures)")
+    p_coord.add_argument("--no-skip-successful", action="store_false",
+                         dest="skip_successful", default=True,
+                         help="Skip ALL previously visited URLs, not just successful ones")
     p_coord.add_argument("--ocr", action="store_true", default=False,
                          help="Enable image OCR (slow, default: False)")
     p_coord.add_argument("--pdf", action="store_true", default=False,

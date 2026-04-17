@@ -20,13 +20,9 @@ Recent improvements (benchmarked):
 - **2.3x faster normalization** — Parallel processing with ProcessPool (278.25ms vs 646.97ms)
 - **Rust URL dedup** — Fast URL checking with BLAKE3 hashing (no GIL under concurrent load)
 
-### Pipeline Stability Fixes
+## Bug Fixes
 
-- **Resume flow now matches normal run** — Flush/drain/enrichment order is consistent
-- **Force-flush enrichment buffer on resume** — Prevents stranded records
-- **Mark URLs visited only after DB success** — DB write failures don't corrupt visited state
-- **Constrained enrichment workers** — Single worker per enrichment task avoids worker explosion
-- **Atomic URL tracking** — Store → Mark → Memory ordering prevents duplicates/misses
+See [docs/BUG_FIXES.md](docs/BUG_FIXES.md) for detailed fixes and stability improvements .
 
 ## Source Coverage
 
@@ -137,6 +133,16 @@ python scripts/corpus_cli.py coordinator --help
 Dashboard URL: http://localhost:8000
 
 Tracks run status, throughput, and output stats.
+
+## Monitoring & Utilities
+
+Check enrichment statistics for a run's raw output:
+
+```bash
+python scripts/check_enrichment_stats.py data/runs/<RUN_ID>/raw.jsonl
+```
+
+Shows total records, enriched vs null records, sample URLs, and enrichment rate.
 
 ## Optional Rust Accelerator
 
