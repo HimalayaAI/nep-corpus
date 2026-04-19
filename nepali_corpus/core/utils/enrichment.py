@@ -234,6 +234,18 @@ def extract_text(
 
     extracted_text = ""
 
+    # Strategy 0: High-Performance Rust PyO3 extractor
+    try:
+        from rust_url_dedup import extract_text as rust_extract
+        rust_text = rust_extract(html)
+        if len(rust_text) > 400:
+             # Fast Devanagari ratio check to ensure it's not gibberish
+             from nepali_corpus.core.utils.normalize import devanagari_ratio
+             if devanagari_ratio(rust_text) > 0.35:
+                 return clean_extracted_text(rust_text).strip()
+    except Exception as e:
+        logger.debug(f"Rust extract_text failed: {e}")
+
     # Strategy 1: trafilatura (best for news articles)
     trafilatura_text: Optional[str] = None
     if use_trafilatura:

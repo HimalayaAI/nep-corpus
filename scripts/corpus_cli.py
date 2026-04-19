@@ -281,8 +281,10 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
             print("\n⚠️  Shutdown signal received — finishing in-flight jobs...")
             coordinator.request_shutdown()
 
-        for sig in (signal.SIGTERM, signal.SIGINT):
+        for sig in (signal.SIGTERM,):
             loop.add_signal_handler(sig, _on_signal)
+
+        loop.add_signal_handler(signal.SIGINT, lambda: print("\n Ctrl+C is disabled for safety! Background scraping will continue. To actually kill, use 'Ctrl+\\' or 'kill <pid>'."))
 
         try:
             if args.resume:

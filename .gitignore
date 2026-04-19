@@ -56,3 +56,4 @@ Thumbs.db
 # Rust
 rust/url_dedup/target/
 rust/*/Cargo.lock
+rust/url_dedup/src/test_lib.rs
