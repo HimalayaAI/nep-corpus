@@ -63,9 +63,7 @@ class DomainRateLimiter:
         self._global_semaphore = asyncio.Semaphore(max_concurrent)
 
     def _get_lock(self, domain: str) -> asyncio.Lock:
-        if domain not in self._domain_locks:
-            self._domain_locks[domain] = asyncio.Lock()
-        return self._domain_locks[domain]
+        return self._domain_locks.setdefault(domain, asyncio.Lock())
 
     def _get_interval(self, domain: str) -> float:
         return self._domain_interval.get(domain, self._default_interval)

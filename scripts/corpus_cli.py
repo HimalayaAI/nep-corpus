@@ -44,7 +44,7 @@ def cmd_ingest(args: argparse.Namespace) -> None:
 
     async def _run_ingest():
         storage = EnvStorageService()
-        await storage.initialize()
+        await storage.initialize(num_workers=getattr(args, 'workers', 4))
         session = storage.create_session()
         
         writer = JsonlWriter(output, gzip_output=args.gzip)
@@ -155,7 +155,7 @@ def cmd_all(args: argparse.Namespace) -> None:
 
     async def _run_pipeline():
         storage = EnvStorageService()
-        await storage.initialize()
+        await storage.initialize(num_workers=getattr(args, 'workers', 4))
         session = storage.create_session()
         
         # 1. SCRAPE (Incremental)
@@ -260,7 +260,7 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
 
     async def _run():
         storage = EnvStorageService()
-        await storage.initialize()
+        await storage.initialize(num_workers=args.workers)
         coordinator = ScrapeCoordinator(
             storage,
             enrichment_batch_size=args.enrichment_batch_size,
@@ -352,7 +352,7 @@ def cmd_rerun_failed(args: argparse.Namespace) -> None:
 
     async def _run():
         storage = EnvStorageService()
-        await storage.initialize()
+        await storage.initialize(num_workers=args.enrichment_workers)
         coordinator = ScrapeCoordinator(
             storage,
             enrichment_workers=args.enrichment_workers,
@@ -386,7 +386,7 @@ def cmd_seed_hf_urls(args: argparse.Namespace) -> None:
 
     async def _run():
         storage = EnvStorageService()
-        await storage.initialize()
+        await storage.initialize(num_workers=1)
 
         cache_path = args.cache_path
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)

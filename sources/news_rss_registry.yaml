@@ -12,6 +12,7 @@
   language: en
   priority: 1
   category: null
+  enabled: false
 - id: khabarhub
   name: Khabarhub
   url: https://english.khabarhub.com/feed/
@@ -124,6 +125,7 @@
   language: ne
   priority: 2
   category: null
+  enabled: false
 - id: koshi_onlinekhabar
   name: OnlineKhabar Koshi
   url: https://www.onlinekhabar.com/content/province/koshi/feed
@@ -138,6 +140,7 @@
   language: ne
   priority: 3
   category: null
+  enabled: false
 - id: madhesh_onlinekhabar
   name: OnlineKhabar Madhesh
   url: https://www.onlinekhabar.com/content/province/madhesh/feed
@@ -180,6 +183,7 @@
   language: ne
   priority: 3
   category: null
+  enabled: false
 - id: pokharahotline
   name: Pokhara Hotline
   url: https://pokharahotline.com/feed/
@@ -222,3 +226,174 @@
   language: ne
   priority: 3
   category: null
+- id: republica
+  name: Republica
+  url: https://republica.com.np/feed/
+  source_type: rss
+  language: ne
+  priority: 1
+  category: null
+  enabled: false
+- id: myrepublica
+  name: MyRepublica
+  url: https://myrepublica.nagariknetwork.com/feed
+  source_type: rss
+  language: en
+  priority: 2
+  category: null
+  enabled: false
+- id: legal_today
+  name: Legal Today Nepal
+  url: https://legaltodaynepal.com/feed/
+  source_type: rss
+  language: ne
+  priority: 2
+  category: legal
+  enabled: false
+- id: supremecourt_news
+  name: Supreme Court Cases
+  url: https://supremecourt.gov.np/feed
+  source_type: rss
+  language: ne
+  priority: 2
+  category: legal
+  enabled: false
+# --- Major National RSS Feeds (new) ---
+- id: ratopati
+  name: Ratopati
+  url: https://ratopati.com/feed
+  source_type: rss
+  language: ne
+  priority: 1
+  category: null
+- id: ujyaaloonline
+  name: Ujyaalo Online
+  url: https://ujyaaloonline.com/rss
+  source_type: rss
+  language: ne
+  priority: 1
+  category: null
+  enabled: false  # 403 blocked
+- id: himalayantimes
+  name: The Himalayan Times
+  url: https://thehimalayantimes.com/rss
+  source_type: rss
+  language: en
+  priority: 1
+  category: null
+  enabled: false
+- id: nepalitimes
+  name: Nepali Times
+  url: https://www.nepalitimes.com/feed/
+  source_type: rss
+  language: en
+  priority: 1
+  category: null
+  enabled: false
+- id: nayapatrika
+  name: Naya Patrika
+  url: https://www.nayapatrikadaily.com/rss
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+  enabled: false  # 502 server down
+- id: nepalpress
+  name: Nepal Press
+  url: https://nepalpress.com/rss
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+- id: hamrakura
+  name: Hamrakura
+  url: https://hamrakura.com/feed
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+  enabled: false  # 404 not found
+- id: news24_ne
+  name: News24 Nepal
+  url: https://news24nepal.tv/feed/
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+  enabled: false
+- id: kantipur_ne
+  name: Kantipur Daily
+  url: https://ekantipur.com/feed
+  source_type: rss
+  language: ne
+  priority: 1
+  category: null
+  enabled: false
+- id: deshsanchar
+  name: Deshsanchar
+  url: https://deshsanchar.com/feed
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+- id: reportersnepal
+  name: Reporters Nepal
+  url: https://www.reportersnepal.com/feed
+  source_type: rss
+  language: ne
+  priority: 2
+  category: null
+- id: dcnepal
+  name: DC Nepal
+  url: https://dcnepal.com/rss
+  source_type: rss
+  language: ne
+  priority: 3
+  category: null
+# --- Business / Finance RSS ---
+- id: sharesansar_rss
+  name: Share Sansar
+  url: https://www.sharesansar.com/rss
+  source_type: rss
+  language: ne
+  priority: 2
+  category: business
+- id: arthasarokar
+  name: Artha Sarokar
+  url: https://arthasarokar.com/feed
+  source_type: rss
+  language: ne
+  priority: 2
+  category: business
+- id: nepalstock_rss
+  name: Nepal Stock
+  url: https://nepalstock.com/feed
+  source_type: rss
+  language: ne
+  priority: 3
+  category: business
+  enabled: false
+# --- Regional RSS (new) ---
+- id: biratnagarmetro_rss
+  name: Biratnagar Metro News
+  url: https://biratnagarmetro.com/feed/
+  source_type: rss
+  language: ne
+  priority: 3
+  category: regional
+  enabled: false
+- id: suryodayakhabar
+  name: Suryodaya Khabar
+  url: https://suryodayakhabar.com/feed/
+  source_type: rss
+  language: ne
+  priority: 3
+  category: regional
+- id: tanahunnews
+  name: Tanahun News
+  url: https://tanahunnews.com/feed/
+  source_type: rss
+  language: ne
+  priority: 4
+  category: regional
+  enabled: false

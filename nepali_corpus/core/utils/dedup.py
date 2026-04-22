@@ -11,12 +11,18 @@ def deduplicate(docs: Iterable[NormalizedDocument]) -> List[NormalizedDocument]:
     unique: List[NormalizedDocument] = []
 
     for doc in docs:
+        # Skip documents with duplicate URL
         if doc.url in seen_urls:
             continue
-        if doc.dedup_key and doc.dedup_key in seen_keys:
-            continue
+        
+        # Only use dedup_key if non-empty after stripping
+        if doc.dedup_key and doc.dedup_key.strip():
+            normalized_key = doc.dedup_key.strip()
+            if normalized_key in seen_keys:
+                continue
+            seen_keys.add(normalized_key)
+        
         seen_urls.add(doc.url)
-        if doc.dedup_key:
-            seen_keys.add(doc.dedup_key)
         unique.append(doc)
+    
     return unique
