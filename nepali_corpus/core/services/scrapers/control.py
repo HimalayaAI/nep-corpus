@@ -30,6 +30,7 @@ from nepali_corpus.core.utils import JsonlWriter
 from nepali_corpus.core.utils.boilerplate import BoilerplateDetector
 from nepali_corpus.core.utils.content_types import identify_content_type
 from nepali_corpus.core.utils.rate_limiter import DomainRateLimiter
+from nepali_corpus.core.utils.url_set import UrlSet
 from nepali_corpus.pipeline.runner import enrich_records, to_training_docs
 
 logger = logging.getLogger("nepali_corpus.scrapers.control")
@@ -147,13 +148,16 @@ class ScrapeCoordinator:
         self._pdf_enabled = pdf_enabled
         self._source_timeout = source_timeout
         self._checkpoint_interval = checkpoint_interval
-        self._visited_urls: Set[str] = set()  # In-memory fast dedup
+        self._visited_urls = UrlSet()
         self._boilerplate_detector = BoilerplateDetector()
         self._rate_limiter = DomainRateLimiter(
             default_rate=rate_limit,
             max_concurrent=max_concurrent,
         )
         self._checkpoint_task: Optional[asyncio.Task] = None
+        self._enrichment_tasks: Set[asyncio.Task] = set()
+        self._enrichment_task_sem = asyncio.Semaphore(max(1, enrichment_workers))
+        self._cache_dir: str = "data/html_cache"  # updated per-run from output_dir
 
     def is_running(self) -> bool:
         return self.state.running
@@ -173,7 +177,7 @@ class ScrapeCoordinator:
                     rows = await session.service._db.fetch(
                         "SELECT url FROM training_documents"
                     )
-                    self._visited_urls = {row[0] for row in rows}
+                    self._visited_urls.add_many(row[0] for row in rows)
                     logger.info("Loaded %d successful URLs to skip", len(self._visited_urls))
                 return
 
@@ -185,10 +189,35 @@ class ScrapeCoordinator:
                     rows = await session.service._db.fetch(
                         "SELECT url FROM visited_urls"
                     )
-                    self._visited_urls = {row[0] for row in rows}
+                    self._visited_urls.add_many(row[0] for row in rows)
                     logger.info("Loaded %d visited URLs", len(self._visited_urls))
         except Exception as e:
             logger.warning("Could not preload visited URLs: %s", e)
+
+    def _schedule_enrichment(self, session: Any, records: List[RawRecord]) -> None:
+        """Schedule enrichment in tracked background tasks with bounded concurrency."""
+        if not records:
+            return
+
+        async def _runner() -> None:
+            async with self._enrichment_task_sem:
+                await self._process_immediate_enrichment(session, records)
+
+        task = asyncio.create_task(_runner())
+        self._enrichment_tasks.add(task)
+        task.add_done_callback(self._enrichment_tasks.discard)
+
+    async def _drain_enrichment_tasks(self) -> None:
+        """Wait for all scheduled enrichment tasks to finish."""
+        if not self._enrichment_tasks:
+            return
+
+        pending = list(self._enrichment_tasks)
+        logger.info("Waiting for %d enrichment tasks to finish", len(pending))
+        results = await asyncio.gather(*pending, return_exceptions=True)
+        for res in results:
+            if isinstance(res, Exception):
+                logger.error("Background enrichment task failed: %s", res)
 
     async def _maybe_flush_enrichment(self, session: Any, force: bool = False) -> None:
         """Drain enrichment buffer and run enrichment if threshold met."""
@@ -203,7 +232,7 @@ class ScrapeCoordinator:
 
         if batch:
             logger.info("Flushing enrichment batch of %d records", len(batch))
-            asyncio.create_task(self._process_immediate_enrichment(session, batch))
+            self._schedule_enrichment(session, batch)
 
     async def _periodic_checkpoint(self, output_dir: str) -> None:
         """Background task to write checkpoints at regular intervals."""
@@ -640,6 +669,14 @@ class ScrapeCoordinator:
         # Preload visited URLs for fast in-memory dedup
         await self._load_visited_urls(session)
 
+        # Set cache dir relative to the run's output directory
+        if output_dir:
+            self._cache_dir = os.path.join(output_dir, "html_cache")
+        elif output_path:
+            self._cache_dir = os.path.join(os.path.dirname(output_path), "html_cache")
+        else:
+            self._cache_dir = "data/html_cache"
+
         jobs = self._build_jobs(categories, max_pages, govt_registry_path, govt_registry_groups, num_sources=num_sources)
 
         # Sort by priority — high-value sources first
@@ -717,6 +754,7 @@ class ScrapeCoordinator:
 
         # --- Flush remaining enrichment buffer ---
         await self._maybe_flush_enrichment(session, force=True)
+        await self._drain_enrichment_tasks()
 
         # --- Enrichment Phase ---
         if not self._stop_event.is_set() and self.state.urls_crawled > 0:
@@ -813,6 +851,10 @@ class ScrapeCoordinator:
         finally:
             writer.flush()
             writer.close()
+
+        # Match the normal run path so buffered records are not stranded on resume.
+        await self._maybe_flush_enrichment(session, force=True)
+        await self._drain_enrichment_tasks()
 
         # --- Enrichment Phase (for any items that need it) ---
         if not self._stop_event.is_set():
@@ -969,7 +1011,7 @@ class ScrapeCoordinator:
                     self.state.record_source(rec.source_id, crawled=1, saved=1)
                     await session.store_raw_records([rec])
                     # Stream PDF to enrichment as well
-                    asyncio.create_task(self._process_immediate_enrichment(session, [rec]))
+                    self._schedule_enrichment(session, [rec])
 
                 self.state.pdf_saved += len(pdf_records)
                 self.state.urls_crawled += len(pdf_records)
@@ -997,54 +1039,73 @@ class ScrapeCoordinator:
         pdf_output_dir: str,
         pdf_jobs: List[PdfJob],
     ) -> None:
-        """Centralized processing for scraped records."""
         if not records:
             return
 
-        saved_records = []
-        seen_count = 0
+        t0 = time.perf_counter()
 
+        urls = [r.url for r in records]
+        seen_set = set()
+        try:
+            seen_set = await session.seen_urls_batch(urls)
+        except AttributeError:
+            for u in urls:
+                if await session.seen_url(u):
+                    seen_set.add(u)
+
+        new_records = []
+        new_urls = []
         for record in records:
-            seen_count += 1
             self.state.record_source(record.source_id, crawled=1)
+            if self._visited_urls.contains(record.url) or record.url in seen_set:
+                continue
 
+            if pdf_enabled and record.url.lower().endswith(".pdf"):
+                pdf_jobs.append(PdfJob(
+                    url=record.url,
+                    source_id=record.source_id,
+                    source_name=record.source_name,
+                    category=record.category,
+                ))
+                continue
+
+            new_records.append(record)
+            new_urls.append(record.url)
+
+        if new_records:
             try:
-                # Fast in-memory dedup first, then DB
-                if record.url in self._visited_urls:
-                    continue
-                if await session.seen_url(record.url):
-                    self._visited_urls.add(record.url)
-                    continue
+                await session.store_raw_records(new_records)
+            except Exception as exc:
+                logger.error("Batch store_raw_records failed: %s", exc)
+                return
 
-                await session.mark_url(record.url)
-                self._visited_urls.add(record.url)
+            # Mark URLs as visited only after successful DB write
+            try:
+                await session.mark_urls_batch(new_urls)
+            except AttributeError:
+                for u in new_urls:
+                    await session.mark_url(u)
 
-                # Handle PDF queuing
-                if pdf_enabled and record.url.lower().endswith(".pdf"):
-                    pdf_jobs.append(PdfJob(
-                        url=record.url,
-                        source_id=record.source_id,
-                        source_name=record.source_name,
-                        category=record.category
-                    ))
-                    continue
+            for url in new_urls:
+                self._visited_urls.add(url)
 
-                # Store and Write
-                await session.store_raw_records([record])
+            for record in new_records:
                 writer.write(record)
-                saved_records.append(record)
                 self.state.record_source(record.source_id, saved=1)
 
-            except Exception as exc:
-                logger.error(f"Failed handling result {record.url}: {exc}")
+        self.state.urls_crawled += len(records)
+        self.state.docs_saved += len(new_records)
 
-        self.state.urls_crawled += seen_count
-        self.state.docs_saved += len(saved_records)
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+        rps = len(records) / max((time.perf_counter() - t0), 0.001)
+        logger.debug(
+            "handle_results: %d records in, %d new, %.1fms, %.0f rec/s",
+            len(records), len(new_records), elapsed_ms, rps,
+        )
 
-        # Add to enrichment buffer (batch-triggered)
-        if saved_records:
+        if new_records:
             async with self._enrichment_lock:
-                self._enrichment_buffer.extend(saved_records)
+                self._enrichment_buffer.extend(new_records)
             await self._maybe_flush_enrichment(session)
 
     async def _process_immediate_enrichment(self, session: Any, records: List[RawRecord]) -> None:
@@ -1052,12 +1113,15 @@ class ScrapeCoordinator:
         try:
             # 1. Fetch content
             from nepali_corpus.pipeline.runner import enrich_records
-            enriched = enrich_records(
-                records, 
-                cache_dir="data/html_cache",
-                ocr_enabled=self._ocr_enabled,
-                pdf_enabled=self._pdf_enabled,
-                max_workers=self._enrichment_workers
+            enriched = await asyncio.get_running_loop().run_in_executor(
+                None,
+                lambda: enrich_records(
+                    records, 
+                    cache_dir=self._cache_dir,
+                    ocr_enabled=self._ocr_enabled,
+                    pdf_enabled=self._pdf_enabled,
+                    max_workers=1
+                )
             )
             
             final_docs = []
@@ -1141,7 +1205,7 @@ class ScrapeCoordinator:
             logger.info("Starting enrichment for %s records...", len(records))
 
             # Run parallel enrichment
-            enriched_pairs = enrich_records(records, cache_dir="data/html_cache")
+            enriched_pairs = enrich_records(records, cache_dir=self._cache_dir)
 
             enriched_records = []
             for rec, content in enriched_pairs:

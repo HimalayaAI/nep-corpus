@@ -137,7 +137,7 @@ def test_coordinator_creates_run_and_jobs(monkeypatch, tmp_path):
     )
 
     # Patch _build_jobs to return deterministic jobs that don't hit network
-    def _mock_build_jobs(self, categories, max_pages, govt_registry_path, govt_registry_groups):
+    def _mock_build_jobs(self, categories, max_pages, govt_registry_path, govt_registry_groups, num_sources=None):
         return [
             ScrapeJob(
                 name="mock_dao",
@@ -184,18 +184,18 @@ def test_coordinator_creates_run_and_jobs(monkeypatch, tmp_path):
     run = session._runs["test_run_001"]
     assert run["status"] == "completed"
 
-    # Jobs should have been created
-    assert len(session._jobs) == 2
+    # Jobs should have been created (2 scrape jobs + 1 enrichment pipeline job)
+    assert len(session._jobs) == 3
 
-    # At least one job should be completed
+    # All jobs should be completed
     completed = [j for j in session._jobs.values() if j["status"] == "completed"]
-    assert len(completed) == 2  # both (one with records, one empty)
+    assert len(completed) == 3  # two scrape jobs + one enrichment job
 
 
 def test_coordinator_tracks_failed_jobs(monkeypatch, tmp_path):
     """Jobs that raise should be marked as failed in DB."""
 
-    def _mock_build_jobs(self, categories, max_pages, govt_registry_path, govt_registry_groups):
+    def _mock_build_jobs(self, categories, max_pages, govt_registry_path, govt_registry_groups, num_sources=None):
         def _failing():
             raise RuntimeError("scraper boom")
         return [
@@ -240,7 +240,7 @@ def test_coordinator_shutdown_marks_interrupted(monkeypatch, tmp_path):
     """Graceful shutdown should mark remaining jobs as interrupted."""
     import time
 
-    def _mock_build_jobs(self, categories, max_pages, govt_registry_path, govt_registry_groups):
+    def _mock_build_jobs(self, categories, max_pages, govt_registry_path, govt_registry_groups, num_sources=None):
         def _slow():
             time.sleep(5)  # simulate slow scrape
             return []

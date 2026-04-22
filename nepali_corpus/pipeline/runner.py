@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import logging
 import os
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Iterable, List, Optional, Tuple
 
@@ -172,42 +174,49 @@ def enrich_records(
     ocr_enabled: bool = True,
     pdf_enabled: bool = True,
 ) -> List[Tuple[RawRecord, Optional[str]]]:
-    """Parallel enrichment using ThreadPoolExecutor."""
     records_list = list(records)
-    enriched: List[Tuple[RawRecord, Optional[str]]] = [None] * len(records_list)
     total = len(records_list)
-    
-    logger.info(f"Enriching {total} records with {max_workers} workers...")
+    enriched: List[Tuple[RawRecord, Optional[str]]] = [None] * total
+    counter = [0]
+    lock = threading.Lock()
+
+    logger.info("Enriching %d records with %d workers", total, max_workers)
+    t0 = time.perf_counter()
 
     def _enrich_one(index: int, rec: RawRecord):
         text = rec.content or rec.summary or ""
         if len(text) >= min_enrich_len:
             enriched[index] = (rec, None)
-            return
+        else:
+            try:
+                data, content_type = fetch_content(rec.url, cache_dir=cache_dir)
+                extracted = extract_text(
+                    data,
+                    content_type=content_type,
+                    url=rec.url,
+                    ocr_enabled=ocr_enabled,
+                    pdf_enabled=pdf_enabled,
+                ) if data else None
+                enriched[index] = (rec, extracted)
+            except Exception as e:
+                logger.warning("Error enriching %s: %s", rec.url, e)
+                enriched[index] = (rec, None)
 
-        try:
-            data, content_type = fetch_content(rec.url, cache_dir=cache_dir)
-            extracted = extract_text(
-                data,
-                content_type=content_type,
-                url=rec.url,
-                ocr_enabled=ocr_enabled,
-                pdf_enabled=pdf_enabled,
-            ) if data else None
-            enriched[index] = (rec, extracted)
-        except Exception as e:
-            logger.warning(f"Error enriching {rec.url}: {e}")
-            enriched[index] = (rec, None)
-
-        # Basic progress logging
-        done = sum(1 for x in enriched if x is not None)
-        if done % 10 == 0 or done == total:
-            logger.info(f"Enrichment progress: {done}/{total} ({(done/total)*100:.1f}%)")
+        with lock:
+            counter[0] += 1
+            done = counter[0]
+        if done % 50 == 0 or done == total:
+            elapsed = time.perf_counter() - t0
+            rps = done / max(elapsed, 0.001)
+            logger.info("Enrichment: %d/%d (%.1f%%) | %.1f rec/s", done, total, done / total * 100, rps)
 
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        for i, rec in enumerate(records_list):
-            executor.submit(_enrich_one, i, rec)
+        futures = [executor.submit(_enrich_one, i, rec) for i, rec in enumerate(records_list)]
+        for f in futures:
+            f.result()
 
+    elapsed = time.perf_counter() - t0
+    logger.info("Enrichment done: %d records in %.2fs (%.1f rec/s)", total, elapsed, total / max(elapsed, 0.001))
     return enriched
 
 
@@ -215,18 +224,32 @@ def normalize_and_filter(
     enriched_records: Iterable[Tuple[RawRecord, Optional[str]]],
     min_chars: int = 200,
     nepali_ratio: float = 0.4,
+    workers: int = 8,
 ) -> List[NormalizedDocument]:
-    docs: List[NormalizedDocument] = []
-    for rec, extracted in enriched_records:
+    pairs = list(enriched_records)
+    t0 = time.perf_counter()
+
+    def _process(pair):
+        rec, extracted = pair
         doc = normalize_record(rec, enriched_text=extracted)
         if not doc:
-            continue
+            return None
         doc.text = clean_text(doc.text)
         if not min_length(doc, min_chars=min_chars):
-            continue
+            return None
         if not is_nepali(doc, min_ratio=nepali_ratio):
-            continue
-        docs.append(doc)
+            return None
+        return doc
+
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        results = list(executor.map(_process, pairs))
+
+    docs = [d for d in results if d is not None]
+    elapsed = time.perf_counter() - t0
+    logger.info(
+        "normalize_and_filter: %d in, %d passed, %.2fs (%.1f rec/s)",
+        len(pairs), len(docs), elapsed, len(pairs) / max(elapsed, 0.001),
+    )
     return docs
 
 

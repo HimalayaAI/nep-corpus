@@ -114,8 +114,8 @@ class SQLEnvStorageSession(StorageSession):
         query = """
             INSERT INTO training_documents (
                 id, url, source_id, source_name, language, text,
-                published_at, date_bs, category, province, district, tags
-            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+                published_at, date_bs, category, content_type, province, district, tags
+            ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
             ON CONFLICT (id) DO UPDATE SET
                 url = EXCLUDED.url,
                 source_id = EXCLUDED.source_id,
@@ -125,6 +125,7 @@ class SQLEnvStorageSession(StorageSession):
                 published_at = EXCLUDED.published_at,
                 date_bs = EXCLUDED.date_bs,
                 category = EXCLUDED.category,
+                content_type = EXCLUDED.content_type,
                 province = EXCLUDED.province,
                 district = EXCLUDED.district,
                 tags = EXCLUDED.tags
@@ -140,6 +141,7 @@ class SQLEnvStorageSession(StorageSession):
             doc.published_at,
             doc.date_bs,
             doc.category,
+            doc.content_type or identify_content_type(doc.url),
             doc.province,
             doc.district,
             json.dumps(doc.tags) if doc.tags is not None else None,
@@ -243,11 +245,6 @@ class SQLEnvStorageSession(StorageSession):
                     json.dumps(self._scrub(rec.raw_meta)) if rec.raw_meta is not None else None,
                 )
             )
-            # Ensure URL is marked as visited in the same flow
-            try:
-                await self.mark_url(rec.url)
-            except Exception:
-                pass
 
         if not args_list:
             return 0
@@ -304,6 +301,26 @@ class SQLEnvStorageSession(StorageSession):
             url_hash,
             url,
         )
+
+    async def seen_urls_batch(self, urls: list) -> set:
+        if self.service._db is None:
+            raise RuntimeError("Database unavailable")
+        hashes = [self._url_hash(u) for u in urls]
+        rows = await self.service._db.fetch(
+            "SELECT url_hash FROM visited_urls WHERE url_hash = ANY($1)", hashes
+        )
+        seen_hashes = {row["url_hash"] for row in rows}
+        return {u for u in urls if self._url_hash(u) in seen_hashes}
+
+    async def mark_urls_batch(self, urls: list) -> None:
+        if self.service._db is None:
+            raise RuntimeError("Database unavailable")
+        args = [(self._url_hash(u), u) for u in urls if u]
+        if args:
+            await self.service._db.executemany(
+                "INSERT INTO visited_urls (url_hash, url) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+                args,
+            )
 
     async def count_urls(self) -> int:
         if self.service._db is None:

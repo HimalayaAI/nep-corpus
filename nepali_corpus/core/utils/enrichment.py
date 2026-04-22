@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import math
 import os
 import re
 import sys
@@ -234,14 +235,16 @@ def extract_text(
     extracted_text = ""
 
     # Strategy 1: trafilatura (best for news articles)
+    trafilatura_text: Optional[str] = None
     if use_trafilatura:
         try:
             import trafilatura
             # silence trafilatura logs
             logging.getLogger("trafilatura").setLevel(logging.ERROR)
-            extracted_text = trafilatura.extract(
+            trafilatura_text = trafilatura.extract(
                 html, url=url, include_comments=False, include_tables=False
             )
+            extracted_text = trafilatura_text or ""
         except Exception:
             pass
 
@@ -357,13 +360,9 @@ def extract_text(
     # Combine results from different extractors and choose the one with the best "quality score"
     candidates = []
     
-    # Candidate 1: Trafilatura
-    if use_trafilatura:
-        try:
-            import trafilatura
-            t_text = trafilatura.extract(html, url=url, include_comments=False)
-            if t_text: candidates.append(("trafilatura", t_text))
-        except Exception: pass
+    # Candidate 1: Trafilatura (reuse result from Strategy 1 — no double parse)
+    if use_trafilatura and trafilatura_text:
+        candidates.append(("trafilatura", trafilatura_text))
 
     # Candidate 2: Readability
     try:
@@ -404,7 +403,6 @@ def extract_text(
         dv_ratio = devanagari_ratio(cleaned)
         # Score = Log(Length) * (1 + DevanagariDensity)
         # We use log to avoid very long boilerplate outvoting shorter high-quality text
-        import math
         score = math.log(len(cleaned) + 1) * (1.0 + dv_ratio)
         
         if score > best_score:

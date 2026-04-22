@@ -1,0 +1,12 @@
+[package]
+name = "rust_url_dedup"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "rust_url_dedup"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.21", features = ["extension-module"] }
+blake3 = "1.5"
