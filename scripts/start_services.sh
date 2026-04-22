@@ -56,13 +56,28 @@ is_port_in_use() {
     lsof -nP -iTCP:$1 -sTCP:LISTEN > /dev/null 2>&1
 }
 
+pg_is_ready() {
+    # pg_isready works even when PostgreSQL runs as another user or on a unix socket
+    if command -v pg_isready >/dev/null 2>&1; then
+        pg_isready -h "$DB_HOST" -p "$DB_PORT" -q 2>/dev/null
+        return $?
+    fi
+    # Fallback: try a psql connection
+    if command -v psql >/dev/null 2>&1; then
+        PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1" >/dev/null 2>&1
+        return $?
+    fi
+    # Last resort: lsof (can miss sockets owned by other users)
+    is_port_in_use "$DB_PORT"
+}
+
 docker_available() {
     docker info >/dev/null 2>&1
 }
 
 DB_AVAILABLE=false
-if is_port_in_use "$DB_PORT"; then
-    echo "PostgreSQL is already running on port $DB_PORT."
+if pg_is_ready; then
+    echo "PostgreSQL is already running on $DB_HOST:$DB_PORT."
     DB_AVAILABLE=true
 elif docker_available; then
     echo "Starting PostgreSQL (Docker)..."
@@ -79,8 +94,8 @@ elif docker_available; then
         echo "Warning: docker compose failed. Database may not be available."
     fi
 else
-    echo "Docker is not running. Database and dashboard data will be unavailable."
-    echo "  Start Docker Desktop (or the Docker daemon), then run this script again for DB + dashboard data."
+    echo "No PostgreSQL found. Database and dashboard data will be unavailable."
+    echo "  Either start PostgreSQL locally or start Docker, then re-run this script."
 fi
 
 if [ "$DB_AVAILABLE" = true ]; then
@@ -91,7 +106,7 @@ if [ "$DB_AVAILABLE" = true ]; then
         echo "⚠ Database schema init returned non-zero (might already be initialized)"
     fi
 else
-    echo "⚠ Skipping database initialization (Docker not available)"
+    echo "⚠ Skipping database initialization (no PostgreSQL connection)"
 fi
 echo ""
 
@@ -122,7 +137,7 @@ fi
 echo ""
 
 echo "=== Services Ready ==="
-echo "Database:  $DB_HOST:$DB_PORT $([ "$DB_AVAILABLE" = true ] && echo '✓' || echo '✗ (start Docker)')"
+echo "Database:  $DB_HOST:$DB_PORT $([ "$DB_AVAILABLE" = true ] && echo '✓' || echo '✗ (start PostgreSQL or Docker)')"
 echo "Dashboard: http://localhost:$DASHBOARD_PORT"
 echo ""
 echo "Logs: dashboard.log, init_db.log"
