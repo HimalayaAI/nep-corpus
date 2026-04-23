@@ -19,8 +19,6 @@ from nepali_corpus.core.utils.content_types import identify_content_type
 from .normalize import devanagari_ratio
 from .boilerplate import clean_extracted_text
 
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
 logger = logging.getLogger(__name__)
 
 # ── Global Noise Selectors (Aggressive Sanitization) ───────────────────
@@ -120,22 +118,32 @@ def fetch_content(url: str, cache_dir: str, timeout: int = 30, delay: float = 0.
             timeout=timeout,
             headers={"User-Agent": "NepaliCorpusBot/1.0 (+https://himalaya.ai)"},
             stream=True,
-            verify=False,
+            verify=True,
         )
         if r.status_code != 200:
             logger.warning(f"Failed to fetch {url}: HTTP {r.status_code}")
             return None, ""
 
         content_type = r.headers.get("Content-Type", "").lower()
+        MAX_SIZE = 50 * 1024 * 1024  # 50MB limit for all downloads
+        
+        chunks = []
+        bytes_read = 0
+        for chunk in r.iter_content(chunk_size=8192):
+            bytes_read += len(chunk)
+            if bytes_read > MAX_SIZE:
+                logger.warning(f"Response too large, truncating: {url}")
+                break
+            chunks.append(chunk)
+            
+        data = b"".join(chunks)
+
         if "application/pdf" in content_type:
             c_type = "application/pdf"
             path = pdf_path
-            # limit pdf to 50MB
-            data = r.raw.read(50 * 1024 * 1024)
         else:
             c_type = "text/html"
             path = html_path
-            data = r.content
 
         with open(path, "wb") as f:
             f.write(data)
@@ -234,7 +242,18 @@ def extract_text(
 
     extracted_text = ""
 
-    # Strategy 1: trafilatura (best for news articles)
+    # Strategy 0: Try Rust extractor first
+    try:
+        from rust_url_dedup import extract_text as rust_extract
+        rust_text = rust_extract(html)
+        if len(rust_text) > 400:
+             # Fast Devanagari ratio check to ensure it's not gibberish
+             if devanagari_ratio(rust_text) > 0.35:
+                 return clean_extracted_text(rust_text).strip()
+    except Exception as e:
+        logger.debug(f"Rust extraction failed: {e}")
+
+    # Fallback to trafilatura
     trafilatura_text: Optional[str] = None
     if use_trafilatura:
         try:
@@ -445,9 +464,8 @@ def _try_ocr_images(html: str, base_url: str) -> str:
                 
             img_url = urljoin(base_url, src)
             
-            # Fetch image
             try:
-                resp = requests.get(img_url, verify=False, timeout=10,
+                resp = requests.get(img_url, verify=True, timeout=10,
                                     headers={"User-Agent": "Mozilla/5.0"})
                 if resp.status_code != 200:
                     continue
@@ -509,7 +527,7 @@ def _try_embedded_pdfs(html: str, base_url: str) -> str:
             
             # Try the first promising PDF link
             pdf_url = urljoin(base_url, pdf_urls[0])
-            resp = requests.get(pdf_url, verify=False, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+            resp = requests.get(pdf_url, verify=True, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
             
             if resp.status_code == 200 and b"%PDF" in resp.content[:10]:
                 from nepali_corpus.core.services.scrapers.pdf.utils import _extract_text_from_pdf

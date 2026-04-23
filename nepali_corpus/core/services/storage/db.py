@@ -71,7 +71,7 @@ class AsyncDatabase:
         try:
             if not self.pool:
                 return False
-            async with self.pool.acquire() as conn:
+            async with self.pool.acquire(timeout=15.0) as conn:
                 await conn.execute("SELECT 1")
                 return True
         except Exception as e:
@@ -88,37 +88,40 @@ class AsyncDatabase:
                 database="postgres",
             )
             try:
-                await temp_conn.execute(f"CREATE DATABASE {self.config.db_name}")
+                safe_name = self.config.db_name.replace('"', '""')
+                await temp_conn.execute(f'CREATE DATABASE "{safe_name}"')
                 logger.info("Created database %s", self.config.db_name)
             except DuplicateDatabaseError:
                 pass
             finally:
                 await temp_conn.close()
         except Exception as e:
-            logger.error("Database creation failed: %s", e)
+            import re as _re
+            safe_msg = _re.sub(r'password=[^\s)]+', 'password=***', str(e))
+            logger.error("Database creation failed: %s", safe_msg)
 
     async def execute(self, query: str, *args: Any) -> str:
         if not self.pool:
             await self.initialize()
-        async with self.pool.acquire() as conn:
+        async with self.pool.acquire(timeout=15.0) as conn:
             return await conn.execute(query, *args)
 
     async def executemany(self, query: str, args_list: List[tuple]) -> None:
         if not self.pool:
             await self.initialize()
-        async with self.pool.acquire() as conn:
+        async with self.pool.acquire(timeout=15.0) as conn:
             await conn.executemany(query, args_list)
 
     async def fetch(self, query: str, *args: Any):
         if not self.pool:
             await self.initialize()
-        async with self.pool.acquire() as conn:
+        async with self.pool.acquire(timeout=15.0) as conn:
             return await conn.fetch(query, *args)
 
     async def fetch_one(self, query: str, *args: Any):
         if not self.pool:
             await self.initialize()
-        async with self.pool.acquire() as conn:
+        async with self.pool.acquire(timeout=15.0) as conn:
             return await conn.fetchrow(query, *args)
 
     async def fetch_value(self, query: str, *args: Any):
@@ -131,25 +134,23 @@ class AsyncDatabase:
     async def transaction(self, isolation: str = "repeatable_read") -> AsyncIterator[asyncpg.Connection]:
         if not self.pool:
             await self.initialize()
-        async with self.pool.acquire() as conn:
+        async with self.pool.acquire(timeout=15.0) as conn:
             async with conn.transaction(isolation=isolation):
                 yield conn
 
-    @asynccontextmanager
-    async def safe_transaction(self, max_retries: int = 3) -> AsyncIterator[asyncpg.Connection]:
+    async def safe_execute(self, query: str, *args: Any, max_retries: int = 3) -> str:
+        """Execute a query with retry logic and exponential backoff."""
         last_error = None
         for attempt in range(max_retries):
             try:
                 async with self.transaction() as conn:
-                    yield conn
-                    return
+                    return await conn.execute(query, *args)
             except Exception as e:
                 last_error = e
                 logger.error("Transaction failed (attempt %s/%s): %s", attempt + 1, max_retries, e)
                 if attempt < max_retries - 1:
                     await asyncio.sleep(self._calculate_backoff(attempt))
-                else:
-                    raise last_error
+        raise last_error
 
     def _calculate_backoff(self, attempt: int) -> float:
         current_delay = self.retry_config["initial_delay"] * (

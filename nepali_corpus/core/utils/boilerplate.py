@@ -172,8 +172,9 @@ def _strip_leading_nav(lines: List[str]) -> List[str]:
     Only strips lines that match known navigation keywords or patterns.
     Does NOT strip arbitrary English text — that would remove article content.
     """
-    while lines:
-        ln = lines[0]
+    start = 0
+    while start < len(lines):
+        ln = lines[start]
         ln_lower = ln.lower().strip()
         ln_clean = ln_lower.replace(" ", "")
 
@@ -198,11 +199,11 @@ def _strip_leading_nav(lines: List[str]) -> List[str]:
                 is_boilerplate = True
 
         if is_boilerplate:
-            lines.pop(0)
+            start += 1
         else:
             break
 
-    return lines
+    return lines[start:]
 
 
 def _filter_junk_lines(lines: List[str]) -> List[str]:

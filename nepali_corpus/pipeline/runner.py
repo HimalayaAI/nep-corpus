@@ -169,8 +169,8 @@ logger = logging.getLogger(__name__)
 def enrich_records(
     records: Iterable[RawRecord],
     cache_dir: str,
-    min_enrich_len: int = 1000,
-    max_workers: int = 10,
+    min_enrich_len: int = 0,
+    max_workers: int = 20,
     ocr_enabled: bool = True,
     pdf_enabled: bool = True,
 ) -> List[Tuple[RawRecord, Optional[str]]]:
@@ -185,7 +185,7 @@ def enrich_records(
 
     def _enrich_one(index: int, rec: RawRecord):
         text = rec.content or rec.summary or ""
-        if len(text) >= min_enrich_len:
+        if min_enrich_len > 0 and len(text) >= min_enrich_len:
             enriched[index] = (rec, None)
         else:
             try:
@@ -226,25 +226,30 @@ def normalize_and_filter(
     nepali_ratio: float = 0.4,
     workers: int = 8,
 ) -> List[NormalizedDocument]:
+    from ..core.utils.normalize import batch_normalize_records, _HAS_RUST
+
     pairs = list(enriched_records)
     t0 = time.perf_counter()
 
-    def _process(pair):
-        rec, extracted = pair
-        doc = normalize_record(rec, enriched_text=extracted)
-        if not doc:
-            return None
-        doc.text = clean_text(doc.text)
-        if not min_length(doc, min_chars=min_chars):
-            return None
-        if not is_nepali(doc, min_ratio=nepali_ratio):
-            return None
-        return doc
+    if _HAS_RUST:
+        docs = batch_normalize_records(pairs, min_chars=min_chars, min_devanagari=nepali_ratio)
+    else:
+        def _process(pair):
+            rec, extracted = pair
+            doc = normalize_record(rec, enriched_text=extracted)
+            if not doc:
+                return None
+            doc.text = clean_text(doc.text)
+            if not min_length(doc, min_chars=min_chars):
+                return None
+            if not is_nepali(doc, min_ratio=nepali_ratio):
+                return None
+            return doc
 
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        results = list(executor.map(_process, pairs))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            results = list(executor.map(_process, pairs))
+        docs = [d for d in results if d is not None]
 
-    docs = [d for d in results if d is not None]
     elapsed = time.perf_counter() - t0
     logger.info(
         "normalize_and_filter: %d in, %d passed, %.2fs (%.1f rec/s)",

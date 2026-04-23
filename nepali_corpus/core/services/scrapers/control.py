@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import os
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -54,6 +55,7 @@ class ScrapeState:
         self.urls_failed = 0
         self.docs_saved = 0
         self.pdf_saved = 0
+        self.jobs_completed = 0
         self.start_time: Optional[float] = None
         self.current_sources: List[str] = []
         self.errors: List[str] = []
@@ -66,6 +68,7 @@ class ScrapeState:
         self.urls_failed = 0
         self.docs_saved = 0
         self.pdf_saved = 0
+        self.jobs_completed = 0
         self.start_time = None
         self.current_sources = []
         self.errors = []
@@ -123,7 +126,7 @@ class ScrapeCoordinator:
         ocr_enabled: bool = False,
         pdf_enabled: bool = False,
         enrichment_workers: int = 10,
-        skip_successful_only: bool = False,
+        skip_successful_only: bool = True,
     ) -> None:
         self._storage = storage
         self.state = ScrapeState()
@@ -143,6 +146,8 @@ class ScrapeCoordinator:
         # Production features
         self._enrichment_batch_size = enrichment_batch_size
         self._enrichment_buffer: List[RawRecord] = []
+        self._enrichment_buffer_last_flush = time.time()
+        self._enrichment_buffer_max_age = 60.0
         self._enrichment_lock = asyncio.Lock()
         self._ocr_enabled = ocr_enabled
         self._pdf_enabled = pdf_enabled
@@ -155,9 +160,12 @@ class ScrapeCoordinator:
             max_concurrent=max_concurrent,
         )
         self._checkpoint_task: Optional[asyncio.Task] = None
+        self._enrichment_flush_task: Optional[asyncio.Task] = None
         self._enrichment_tasks: Set[asyncio.Task] = set()
-        self._enrichment_task_sem = asyncio.Semaphore(max(1, enrichment_workers))
-        self._cache_dir: str = "data/html_cache"  # updated per-run from output_dir
+        self._enrichment_task_sem = asyncio.Semaphore(2)
+        self._cache_dir: str = "data/html_cache"
+        self._discovery_futures: List = []
+        self._writer: Optional[JsonlWriter] = None
 
     def is_running(self) -> bool:
         return self.state.running
@@ -220,18 +228,31 @@ class ScrapeCoordinator:
                 logger.error("Background enrichment task failed: %s", res)
 
     async def _maybe_flush_enrichment(self, session: Any, force: bool = False) -> None:
-        """Drain enrichment buffer and run enrichment if threshold met."""
+        """Flush enrichment buffer when threshold or time limit reached."""
         async with self._enrichment_lock:
             if not self._enrichment_buffer:
                 return
-            if not force and len(self._enrichment_buffer) < self._enrichment_batch_size:
+            
+            buffer_age = time.time() - self._enrichment_buffer_last_flush
+            should_flush = (
+                force or
+                len(self._enrichment_buffer) >= self._enrichment_batch_size or
+                (len(self._enrichment_buffer) > 0 and buffer_age > self._enrichment_buffer_max_age)
+            )
+            
+            if not should_flush:
                 return
 
             batch = list(self._enrichment_buffer)
             self._enrichment_buffer.clear()
+            self._enrichment_buffer_last_flush = time.time()
 
         if batch:
-            logger.info("Flushing enrichment batch of %d records", len(batch))
+            logger.info(
+                "Flushing enrichment batch of %d records (age=%.1fs)",
+                len(batch),
+                buffer_age if force else time.time() - self._enrichment_buffer_last_flush
+            )
             self._schedule_enrichment(session, batch)
 
     async def _periodic_checkpoint(self, output_dir: str) -> None:
@@ -245,6 +266,23 @@ class ScrapeCoordinator:
                 break
             except Exception as e:
                 logger.debug("Checkpoint write failed: %s", e)
+    
+    async def _periodic_enrichment_flush(self, session: Any) -> None:
+        """Background task to periodically flush enrichment buffer (time-based).
+        
+        Prevents buffer from growing unbounded during long-running scrapes.
+        Flushes every 30 seconds if buffer is non-empty.
+        """
+        flush_interval = 30  # seconds
+        while not self._stop_event.is_set():
+            try:
+                await asyncio.sleep(flush_interval)
+                if self.state.running:
+                    await self._maybe_flush_enrichment(session, force=False)
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.warning("Periodic enrichment flush failed: %s", e)
 
     async def start(
         self,
@@ -272,26 +310,33 @@ class ScrapeCoordinator:
         self.state.running = True
         self.state.start_time = time.time()
 
-        # Generate run_id if not provided
         self._run_id = run_id or datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        self._task = asyncio.create_task(
-            self._run(
-                workers=workers,
-                max_pages=max_pages,
-                categories=categories,
-                pdf_enabled=pdf_enabled,
-                ocr_enabled=ocr_enabled,
-                gzip_output=gzip_output,
-                output_path=output_path,
-                pdf_output_dir=pdf_output_dir,
-                govt_registry_path=govt_registry_path,
-                govt_registry_groups=govt_registry_groups,
-                output_dir=output_dir,
-                log_file=log_file,
-                num_sources=num_sources,
-            )
-        )
+        async def _run_wrapper():
+            try:
+                await self._run(
+                    workers=workers,
+                    max_pages=max_pages,
+                    categories=categories,
+                    pdf_enabled=pdf_enabled,
+                    ocr_enabled=ocr_enabled,
+                    gzip_output=gzip_output,
+                    output_path=output_path,
+                    pdf_output_dir=pdf_output_dir,
+                    govt_registry_path=govt_registry_path,
+                    govt_registry_groups=govt_registry_groups,
+                    output_dir=output_dir,
+                    log_file=log_file,
+                    num_sources=num_sources,
+                )
+            except Exception as e:
+                logger.exception(f"Coordinator _run task crashed with an unhandled exception: {e}")
+            finally:
+                self.state.running = False
+                self._stop_event.set()
+                self._shutdown_event.set()
+
+        self._task = asyncio.create_task(_run_wrapper())
 
     async def stop(self) -> None:
         self._stop_event.set()
@@ -332,22 +377,30 @@ class ScrapeCoordinator:
         self.state.start_time = time.time()
         self._run_id = run_id
 
-        self._task = asyncio.create_task(
-            self._resume(
-                run_id=run_id,
-                workers=workers,
-                max_pages=max_pages,
-                pdf_enabled=pdf_enabled,
-                gzip_output=gzip_output,
-                output_path=output_path,
-                pdf_output_dir=pdf_output_dir,
-                govt_registry_path=govt_registry_path,
-                govt_registry_groups=govt_registry_groups,
-                output_dir=output_dir,
-                log_file=log_file,
-                num_sources=num_sources,
-            )
-        )
+        async def _resume_wrapper():
+            try:
+                await self._resume(
+                    run_id=run_id,
+                    workers=workers,
+                    max_pages=max_pages,
+                    pdf_enabled=pdf_enabled,
+                    gzip_output=gzip_output,
+                    output_path=output_path,
+                    pdf_output_dir=pdf_output_dir,
+                    govt_registry_path=govt_registry_path,
+                    govt_registry_groups=govt_registry_groups,
+                    output_dir=output_dir,
+                    log_file=log_file,
+                    num_sources=num_sources,
+                )
+            except Exception as e:
+                logger.exception(f"Coordinator _resume task crashed with an unhandled exception: {e}")
+            finally:
+                self.state.running = False
+                self._stop_event.set()
+                self._shutdown_event.set()
+
+        self._task = asyncio.create_task(_resume_wrapper())
 
     async def run_rerun_failed(
         self,
@@ -368,72 +421,77 @@ class ScrapeCoordinator:
         self.state.start_time = time.time()
         self._run_id = f"rerun_failed_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
 
-        # Initialize logging
-        if log_file:
-            self._setup_logging(log_file)
+        async def _rerun_wrapper():
+            try:
+                # Initialize logging
+                if log_file:
+                    self._setup_logging(log_file)
 
-        session = self._storage.create_session()
-        await self._load_visited_urls(session)
+                session = self._storage.create_session()
+                await self._load_visited_urls(session)
 
-        try:
-            # Query NULL records that are NOT in training_documents
-            query = """
-                SELECT r.* FROM raw_records r
-                LEFT JOIN training_documents t ON r.url = t.url
-                WHERE r.content IS NULL AND t.url IS NULL
-            """
-            if limit:
-                query += f" LIMIT {limit}"
+                # Query NULL records that are NOT in training_documents
+                query = """
+                    SELECT r.* FROM raw_records r
+                    LEFT JOIN training_documents t ON r.url = t.url
+                    WHERE r.content IS NULL AND t.url IS NULL
+                """
+                query_args = []
+                if limit:
+                    query += " LIMIT $1"
+                    query_args.append(limit)
 
-            async with self._storage._db.pool.acquire() as conn:
-                rows = await conn.fetch(query)
-                records = []
-                for row in rows:
-                    data = dict(row)
-                    # Handle JSON fields that might be strings
-                    if isinstance(data.get("raw_meta"), str):
-                        try:
-                            data["raw_meta"] = json.loads(data["raw_meta"])
-                        except Exception:
-                            data["raw_meta"] = {}
-                    if isinstance(data.get("tags"), str):
-                        try:
-                            data["tags"] = json.loads(data["tags"])
-                        except Exception:
-                            data["tags"] = []
+                async with self._storage._db.pool.acquire() as conn:
+                    rows = await conn.fetch(query, *query_args)
+                    records = []
+                    for row in rows:
+                        data = dict(row)
+                        # Handle JSON fields that might be strings
+                        if isinstance(data.get("raw_meta"), str):
+                            try:
+                                data["raw_meta"] = json.loads(data["raw_meta"])
+                            except Exception:
+                                data["raw_meta"] = {}
+                        if isinstance(data.get("tags"), str):
+                            try:
+                                data["tags"] = json.loads(data["tags"])
+                            except Exception:
+                                data["tags"] = []
 
-                    rec = RawRecord(**data)
-                    records.append(rec)
+                        rec = RawRecord(**data)
+                        records.append(rec)
 
-                logger.info("Found %d records needing rerun (NULL content)", len(records))
-                if not records:
-                    logger.info("Nothing to rerun.")
-                    return
+                    logger.info("Found %d records needing rerun (NULL content)", len(records))
+                    if not records:
+                        logger.info("Nothing to rerun.")
+                        return
 
-                # Process in batches
-                for i in range(0, len(records), batch_size):
-                    if self._shutdown_event.is_set():
-                        break
-                    
-                    batch = records[i : i + batch_size]
-                    logger.info("Rerunning batch %d/%d...", (i // batch_size) + 1, (len(records) // batch_size + 1))
-                    await self._process_immediate_enrichment(session, batch)
-                    
-                    # Update stats
-                    self.state.urls_crawled += len(batch)
-                    
-                    # Periodic logging
-                    if i % (batch_size * 5) == 0:
-                        logger.info("Progress: %d/%d rerun complete", i, len(records))
+                    # Process in batches
+                    for i in range(0, len(records), batch_size):
+                        if self._shutdown_event.is_set():
+                            break
+                        
+                        batch = records[i : i + batch_size]
+                        logger.info("Rerunning batch %d/%d...", (i // batch_size) + 1, (len(records) // batch_size + 1))
+                        await self._process_immediate_enrichment(session, batch)
+                        
+                        # Update stats
+                        self.state.urls_crawled += len(batch)
+                        
+                        # Periodic logging
+                        if i % (batch_size * 5) == 0:
+                            logger.info("Progress: %d/%d rerun complete", i, len(records))
 
-            logger.info("Rerun-failed run completed.")
-        except Exception as e:
-            logger.error("Rerun-failed failed: %s", e)
-        finally:
-            self.state.running = False
-            if self._log_handler:
-                logger.removeHandler(self._log_handler)
-                self._log_handler.close()
+                    logger.info("Rerun-failed run completed.")
+            except Exception as e:
+                logger.exception(f"Rerun-failed failed: {e}")
+            finally:
+                self.state.running = False
+                if self._log_handler:
+                    logger.removeHandler(self._log_handler)
+                    self._log_handler.close()
+
+        self._task = asyncio.create_task(_rerun_wrapper())
 
     def _setup_logging(self, log_file: str) -> None:
         """Helper to redirect logs to a run-specific file."""
@@ -655,12 +713,8 @@ class ScrapeCoordinator:
         log_file: Optional[str] = None,
         num_sources: Optional[int] = None,
     ) -> None:
-        # Default OCR/PDF to False for News runs unless explicitly enabled
-        if categories and "News" in categories:
-            self._ocr_enabled = ocr_enabled if ocr_enabled is True else False
-        else:
-            self._ocr_enabled = ocr_enabled
-        self._pdf_enabled = pdf_enabled
+        self._ocr_enabled = bool(ocr_enabled)
+        self._pdf_enabled = bool(pdf_enabled)
         if log_file:
             self._setup_file_logging(log_file)
 
@@ -692,7 +746,6 @@ class ScrapeCoordinator:
             self._run_id, len(jobs), workers, len(self._visited_urls),
         )
 
-        # --- Create pipeline run in DB ---
         config = {
             "workers": workers,
             "max_pages": max_pages,
@@ -716,7 +769,6 @@ class ScrapeCoordinator:
             logger.warning("Failed to create pipeline run record: %s", e)
             self._db_run_id = 0
 
-        # --- Create pipeline jobs in DB ---
         for job in jobs:
             try:
                 db_id = await session.create_pipeline_job(
@@ -731,14 +783,18 @@ class ScrapeCoordinator:
             except Exception as e:
                 logger.warning("Failed to create job record for %s: %s", job.name, e)
 
-        # --- Start periodic checkpoint background task ---
         if output_dir:
             self._checkpoint_task = asyncio.create_task(
                 self._periodic_checkpoint(output_dir)
             )
+        
+        # Start periodic enrichment buffer flush (prevents memory leak from unbounded buffering)
+        self._enrichment_flush_task = asyncio.create_task(
+            self._periodic_enrichment_flush(session)
+        )
 
-        # --- Execute jobs (Scrape) ---
         writer = JsonlWriter(output_path, gzip_output=gzip_output, append=True)
+        self._writer = writer
         try:
             await self._execute_jobs(
                 jobs=jobs,
@@ -748,27 +804,38 @@ class ScrapeCoordinator:
                 pdf_enabled=pdf_enabled,
                 pdf_output_dir=pdf_output_dir,
             )
+            await asyncio.sleep(0)
+            for fut in self._discovery_futures:
+                try:
+                    await asyncio.wrap_future(fut)
+                except Exception as e:
+                    logger.warning("Discovery batch coroutine failed: %s", e)
+            self._discovery_futures.clear()
         finally:
             writer.flush()
-            writer.close()
 
-        # --- Flush remaining enrichment buffer ---
         await self._maybe_flush_enrichment(session, force=True)
         await self._drain_enrichment_tasks()
+        writer.close()
+        self._writer = None
 
-        # --- Enrichment Phase ---
-        if not self._stop_event.is_set() and self.state.urls_crawled > 0:
+        if self.state.urls_crawled > 0:
             await self._run_enrichment(session, output_path, gzip_output, workers)
 
-        # --- Cancel checkpoint task ---
         if self._checkpoint_task:
             self._checkpoint_task.cancel()
             try:
                 await self._checkpoint_task
             except asyncio.CancelledError:
                 pass
+        
+        if self._enrichment_flush_task:
+            self._enrichment_flush_task.cancel()
+            try:
+                await self._enrichment_flush_task
+            except asyncio.CancelledError:
+                pass
 
-        # --- Finalize run ---
         await self._finalize_run(session)
         self._cleanup_file_logging()
         self._log_run_summary()
@@ -838,6 +905,11 @@ class ScrapeCoordinator:
             self.state.running = False
             return
 
+        # Start periodic enrichment buffer flush (prevents memory leak from unbounded buffering)
+        self._enrichment_flush_task = asyncio.create_task(
+            self._periodic_enrichment_flush(session)
+        )
+
         writer = JsonlWriter(output_path, gzip_output=gzip_output, append=True)
         try:
             await self._execute_jobs(
@@ -860,6 +932,13 @@ class ScrapeCoordinator:
         if not self._stop_event.is_set():
             await self._run_enrichment(session, output_path, gzip_output, workers)
 
+        if self._enrichment_flush_task:
+            self._enrichment_flush_task.cancel()
+            try:
+                await self._enrichment_flush_task
+            except asyncio.CancelledError:
+                pass
+
         await self._finalize_run(session)
         self._cleanup_file_logging()
 
@@ -878,6 +957,8 @@ class ScrapeCoordinator:
         loop = asyncio.get_running_loop()
         pending: List[asyncio.Future] = []
         pdf_jobs: List[PdfJob] = []
+        discovery_futures = self._discovery_futures
+        discovery_futures_lock = threading.Lock()
 
         async def _process_batch_records(j, records):
             """Helper to bridge threadpool batches back to main loop."""
@@ -904,10 +985,12 @@ class ScrapeCoordinator:
                             ) for url in batch_urls
                         ]
                         # Dispatch to main loop for handling
-                        asyncio.run_coroutine_threadsafe(
+                        fut = asyncio.run_coroutine_threadsafe(
                             _process_batch_records(j, records),
                             loop
                         )
+                        with discovery_futures_lock:
+                            discovery_futures.append(fut)
                     return j, [] # No final records for discovery job
                 else:
                     # Standard jobs return List[RawRecord]
@@ -994,6 +1077,7 @@ class ScrapeCoordinator:
                         )
                     except Exception:
                         pass
+                self.state.jobs_completed += 1
 
         # Handle queued PDFs after all scrapers are done
         if pdf_enabled and pdf_jobs and HAS_PYMUPDF:
@@ -1046,12 +1130,15 @@ class ScrapeCoordinator:
 
         urls = [r.url for r in records]
         seen_set = set()
-        try:
-            seen_set = await session.seen_urls_batch(urls)
-        except AttributeError:
-            for u in urls:
-                if await session.seen_url(u):
-                    seen_set.add(u)
+        
+        
+        if not self._skip_successful_only:
+            try:
+                seen_set = await session.seen_urls_batch(urls)
+            except AttributeError:
+                for u in urls:
+                    if await session.seen_url(u):
+                        seen_set.add(u)
 
         new_records = []
         new_urls = []
@@ -1073,24 +1160,23 @@ class ScrapeCoordinator:
             new_urls.append(record.url)
 
         if new_records:
+            stored_ok = False
             try:
                 await session.store_raw_records(new_records)
+                stored_ok = True
             except Exception as exc:
-                logger.error("Batch store_raw_records failed: %s", exc)
-                return
+                logger.error("store_raw_records failed (continuing): %s", exc)
 
-            # Mark URLs as visited only after successful DB write
-            try:
-                await session.mark_urls_batch(new_urls)
-            except AttributeError:
-                for u in new_urls:
-                    await session.mark_url(u)
-
-            for url in new_urls:
-                self._visited_urls.add(url)
+            if stored_ok:
+                try:
+                    await session.mark_urls_batch(new_urls)
+                except AttributeError:
+                    for u in new_urls:
+                        await session.mark_url(u)
+                for url in new_urls:
+                    self._visited_urls.add(url)
 
             for record in new_records:
-                writer.write(record)
                 self.state.record_source(record.source_id, saved=1)
 
         self.state.urls_crawled += len(records)
@@ -1105,13 +1191,15 @@ class ScrapeCoordinator:
 
         if new_records:
             async with self._enrichment_lock:
+                if not self._enrichment_buffer:
+                    self._enrichment_buffer_last_flush = time.time()
                 self._enrichment_buffer.extend(new_records)
             await self._maybe_flush_enrichment(session)
 
     async def _process_immediate_enrichment(self, session: Any, records: List[RawRecord]) -> None:
         """Run enrichment and training doc sync out-of-band."""
+
         try:
-            # 1. Fetch content
             from nepali_corpus.pipeline.runner import enrich_records
             enriched = await asyncio.get_running_loop().run_in_executor(
                 None,
@@ -1120,15 +1208,23 @@ class ScrapeCoordinator:
                     cache_dir=self._cache_dir,
                     ocr_enabled=self._ocr_enabled,
                     pdf_enabled=self._pdf_enabled,
-                    max_workers=1
+                    max_workers=10
                 )
             )
-            
-            final_docs = []
-            for rec, content in enriched:
+        except Exception as e:
+            logger.error("Streaming enrichment fetch failed for batch of %d: %s", len(records), e)
+            if self._writer:
+                for rec in records:
+                    self._writer.write(rec)
+            return
+
+        final_docs = []
+        enriched_count = 0
+        for rec, content in enriched:
+            try:
                 if content:
                     rec.content = content
-                    # Use domain profiles if available
+                    enriched_count += 1
                     cleaned = self._boilerplate_detector.clean_document(content, rec.source_id)
                     
                     if len(cleaned.strip()) >= 200:
@@ -1151,16 +1247,32 @@ class ScrapeCoordinator:
                         final_docs.append(doc)
                         if lang == "en":
                             logger.debug("Tagged English article: %s (ratio %.2f)", rec.url, ratio)
-            
-            if final_docs:
+            except Exception as e:
+                logger.warning("Enrichment processing failed for %s: %s", rec.url, e)
+                continue
+
+        if self._writer:
+            for rec, _ in enriched:
+                self._writer.write(rec)
+            self._writer.flush()
+
+        logger.info(
+            "Streaming enrichment: %d/%d fetched content, %d training docs created",
+            enriched_count, len(records), len(final_docs),
+        )
+
+        if final_docs:
+            try:
                 await session.store_training_documents(final_docs)
-            
-            # Update raw records with enriched content in DB
-            if records:
-                await session.store_raw_records(records)
-                
-        except Exception as e:
-            logger.error(f"Streaming enrichment failed: {e}")
+            except Exception as e:
+                logger.error("Failed to store %d training documents: %s", len(final_docs), e)
+        
+        enriched_recs = [rec for rec, content in enriched if content]
+        if enriched_recs:
+            try:
+                await session.store_raw_records(enriched_recs)
+            except Exception as e:
+                logger.error("Failed to update raw records after enrichment: %s", e)
 
 
     async def _run_enrichment(
@@ -1202,19 +1314,31 @@ class ScrapeCoordinator:
                 await session.update_pipeline_job(job_id, status="completed", records_saved=0)
                 return
 
-            logger.info("Starting enrichment for %s records...", len(records))
+            unenriched = [r for r in records if not r.content]
+            already_enriched = [r for r in records if r.content]
+            logger.info(
+                "Post-run enrichment: %d total records, %d already enriched, %d need enrichment",
+                len(records), len(already_enriched), len(unenriched),
+            )
 
-            # Run parallel enrichment
-            enriched_pairs = enrich_records(records, cache_dir=self._cache_dir)
+            enriched_records = list(already_enriched)  # Keep already-enriched as-is
 
-            enriched_records = []
-            for rec, content in enriched_pairs:
-                if content:
-                    rec.content = content
-                enriched_records.append(rec)
+            if unenriched:
+                enriched_pairs = enrich_records(
+                    unenriched,
+                    cache_dir=self._cache_dir,
+                    ocr_enabled=self._ocr_enabled,
+                    pdf_enabled=self._pdf_enabled,
+                )
+                for rec, content in enriched_pairs:
+                    if content:
+                        rec.content = content
+                    enriched_records.append(rec)
 
-            # Save enriched data back to raw file
-            save_raw_jsonl(enriched_records, output_path, gzip_output=gzip_output)
+            import shutil as _shutil
+            _tmp_path = output_path + ".enriching.tmp"
+            save_raw_jsonl(enriched_records, _tmp_path, gzip_output=gzip_output)
+            _shutil.move(_tmp_path, output_path)
 
             # --- Cross-document boilerplate removal via BoilerplateDetector ---
             # Group texts by domain for profile learning
@@ -1263,14 +1387,14 @@ class ScrapeCoordinator:
 
             if training_docs:
                 await session.store_training_documents(training_docs)
-                self.state.docs_saved = len(training_docs)
+                self.state.docs_saved += len(training_docs)
                 logger.info(
                     "Saved %s clean training documents (boilerplate stripped, %d domains profiled)",
                     len(training_docs),
                     self._boilerplate_detector.domain_count,
                 )
             else:
-                logger.info("No training documents passed cleaning filters")
+                logger.info("No additional training documents passed cleaning filters")
 
             # Update raw_records table with enriched content
             await session.store_raw_records(enriched_records)
@@ -1305,7 +1429,7 @@ class ScrapeCoordinator:
             await session.update_pipeline_run(
                 self._run_id,
                 status=final_status,
-                completed_jobs=self.state.docs_saved,
+                completed_jobs=self.state.jobs_completed,
                 total_records_scraped=self.state.urls_crawled,
                 total_records_saved=self.state.docs_saved,
                 completed_at=datetime.now(timezone.utc),
@@ -1371,12 +1495,14 @@ class ScrapeCoordinator:
         return isinstance(exc, (requests.ConnectionError, requests.Timeout))
 
     async def _probe_internet(self) -> bool:
-        """Probe a reliable host to see if internet is up."""
-        import requests
+        """Probe internet via DNS lookup — avoids HTTP which 8.8.8.8 does not serve."""
+        import socket
         try:
-            # Wrap in run_in_executor since requests.get is blocking
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, lambda: requests.get("https://8.8.8.8", timeout=5))
+            await loop.run_in_executor(
+                None,
+                lambda: socket.getaddrinfo("dns.google", 80, proto=socket.IPPROTO_TCP),
+            )
             return True
         except Exception:
             return False

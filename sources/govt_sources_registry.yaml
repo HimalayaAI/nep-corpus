@@ -457,6 +457,28 @@
   poll_interval_mins: 180
   meta:
     group: judiciary
+- id: barcouncil
+  name: Nepal Bar Council
+  url: https://barcouncil.org.np
+  source_type: government
+  category: judiciary
+  name_ne: नेपाल बार काउन्सिल
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 120
+  meta:
+    group: judiciary
+- id: doj
+  name: Department of Justice
+  url: https://doj.gov.np
+  source_type: government
+  category: judiciary
+  name_ne: न्याय विभाग
+  scraper_class: judiciary
+  priority: 2
+  poll_interval_mins: 120
+  meta:
+    group: judiciary
 - id: nepalpolice
   name: Nepal Police
   url: https://nepalpolice.gov.np
@@ -732,3 +754,339 @@
   poll_interval_mins: 180
   meta:
     group: Municiplaity
+# --- Key Departments & Agencies ---
+- id: npc
+  name: National Planning Commission
+  url: https://npc.gov.np
+  source_type: government
+  category: departments
+  name_ne: राष्ट्रिय योजना आयोग
+  scraper_class: regulatory
+  priority: 1
+  poll_interval_mins: 120
+  meta:
+    group: departments
+- id: nso
+  name: National Statistics Office
+  url: https://nsonepal.gov.np
+  source_type: government
+  category: departments
+  name_ne: राष्ट्रिय तथ्याङ्क कार्यालय
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 180
+  meta:
+    group: departments
+- id: customs
+  name: Department of Customs
+  url: https://customs.gov.np
+  source_type: government
+  category: departments
+  name_ne: भन्सार विभाग
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 180
+  meta:
+    group: departments
+- id: dftqc
+  name: Department of Food Technology and Quality Control
+  url: https://dftqc.gov.np
+  source_type: government
+  category: departments
+  name_ne: खाद्य प्रविधि तथा गुण नियन्त्रण विभाग
+  scraper_class: regulatory
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: departments
+- id: doed
+  name: Department of Electricity Development
+  url: https://doed.gov.np
+  source_type: government
+  category: departments
+  name_ne: विद्युत विकास विभाग
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 180
+  meta:
+    group: departments
+- id: nlc
+  name: Nepal Law Commission
+  url: https://lawcommission.gov.np
+  source_type: government
+  category: departments
+  name_ne: नेपाल कानून आयोग
+  scraper_class: regulatory
+  priority: 1
+  poll_interval_mins: 120
+  meta:
+    group: departments
+- id: ird
+  name: Inland Revenue Department
+  url: https://ird.gov.np
+  source_type: government
+  category: departments
+  name_ne: आन्तरिक राजस्व विभाग
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 180
+  meta:
+    group: departments
+- id: dor
+  name: Department of Roads
+  url: https://dor.gov.np
+  source_type: government
+  category: departments
+  name_ne: सडक विभाग
+  scraper_class: regulatory
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: departments
+- id: dohs
+  name: Department of Health Services
+  url: https://dohs.gov.np
+  source_type: government
+  category: departments
+  name_ne: स्वास्थ्य सेवा विभाग
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 120
+  meta:
+    group: departments
+- id: doe
+  name: Department of Education
+  url: https://doe.gov.np
+  source_type: government
+  category: departments
+  name_ne: शिक्षा विकास निर्देशनालय
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 180
+  meta:
+    group: departments
+- id: ctevt
+  name: Council for Technical Education and Vocational Training
+  url: https://ctevt.org.np
+  source_type: government
+  category: departments
+  name_ne: प्राविधिक शिक्षा तथा व्यावसायिक तालिम परिषद्
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 180
+  meta:
+    group: departments
+- id: doi
+  name: Department of Information
+  url: https://doinepal.gov.np
+  source_type: government
+  category: departments
+  name_ne: सूचना विभाग
+  scraper_class: ministry_generic
+  endpoints:
+    press_release_ne: /page/press-release
+    notice_ne: /page/notice
+  priority: 1
+  poll_interval_mins: 60
+  meta:
+    group: departments
+# --- Autonomous Bodies ---
+- id: ican
+  name: Institute of Chartered Accountants of Nepal
+  url: https://ican.org.np
+  source_type: government
+  category: autonomous_bodies
+  name_ne: लेखापरीक्षण संस्थान नेपाल
+  scraper_class: regulatory
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: autonomous_bodies
+- id: ntc
+  name: Nepal Telecom
+  url: https://ntc.net.np
+  source_type: government
+  category: autonomous_bodies
+  name_ne: नेपाल टेलिकम
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 120
+  meta:
+    group: autonomous_bodies
+- id: nea
+  name: Nepal Electricity Authority
+  url: https://nea.org.np
+  source_type: government
+  category: autonomous_bodies
+  name_ne: नेपाल विद्युत प्राधिकरण
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 120
+  meta:
+    group: autonomous_bodies
+- id: nra
+  name: National Reconstruction Authority
+  url: https://nra.gov.np
+  source_type: government
+  category: autonomous_bodies
+  name_ne: राष्ट्रिय पुनर्निर्माण प्राधिकरण
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 180
+  meta:
+    group: autonomous_bodies
+- id: kvda
+  name: Kathmandu Valley Development Authority
+  url: https://kvda.gov.np
+  source_type: government
+  category: autonomous_bodies
+  name_ne: काठमाडौं उपत्यका विकास प्राधिकरण
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 180
+  meta:
+    group: autonomous_bodies
+- id: ccmc
+  name: Company Registrar Office
+  url: https://ocr.gov.np
+  source_type: government
+  category: autonomous_bodies
+  name_ne: कम्पनी रजिस्ट्रारको कार्यालय
+  scraper_class: regulatory
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: autonomous_bodies
+- id: tunepal
+  name: Tribhuvan University
+  url: https://tu.edu.np
+  source_type: government
+  category: universities
+  name_ne: त्रिभुवन विश्वविद्यालय
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 180
+  meta:
+    group: universities
+- id: ku
+  name: Kathmandu University
+  url: https://ku.edu.np
+  source_type: government
+  category: universities
+  name_ne: काठमाडौं विश्वविद्यालय
+  scraper_class: regulatory
+  priority: 2
+  poll_interval_mins: 180
+  meta:
+    group: universities
+- id: punepal
+  name: Pokhara University
+  url: https://pu.edu.np
+  source_type: government
+  category: universities
+  name_ne: पोखरा विश्वविद्यालय
+  scraper_class: regulatory
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: universities
+# --- Sub-Metropolitan Cities ---
+- id: dharan
+  name: Dharan Sub-Metropolitan City
+  url: https://dharanmun.gov.np
+  source_type: government
+  category: sub_metropolitan
+  name_ne: धरान उपमहानगरपालिका
+  scraper_class: municipality_scraper
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: sub_metropolitan
+- id: itahari
+  name: Itahari Sub-Metropolitan City
+  url: https://itaharimun.gov.np
+  source_type: government
+  category: sub_metropolitan
+  name_ne: ईटहरी उपमहानगरपालिका
+  scraper_class: municipality_scraper
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: sub_metropolitan
+- id: hetauda
+  name: Hetauda Sub-Metropolitan City
+  url: https://hetaudamun.gov.np
+  source_type: government
+  category: sub_metropolitan
+  name_ne: हेटौंडा उपमहानगरपालिका
+  scraper_class: municipality_scraper
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: sub_metropolitan
+- id: butwal
+  name: Butwal Sub-Metropolitan City
+  url: https://butwalmun.gov.np
+  source_type: government
+  category: sub_metropolitan
+  name_ne: बुटवल उपमहानगरपालिका
+  scraper_class: municipality_scraper
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: sub_metropolitan
+- id: nepalgunj
+  name: Nepalgunj Sub-Metropolitan City
+  url: https://nepalgunjmun.gov.np
+  source_type: government
+  category: sub_metropolitan
+  name_ne: नेपालगंज उपमहानगरपालिका
+  scraper_class: municipality_scraper
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: sub_metropolitan
+- id: siddharthanagar
+  name: Siddharthanagar Municipality
+  url: https://siddharthanagarmun.gov.np
+  source_type: government
+  category: sub_metropolitan
+  name_ne: सिद्धार्थनगर नगरपालिका
+  scraper_class: municipality_scraper
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: sub_metropolitan
+- id: ghorahi
+  name: Ghorahi Sub-Metropolitan City
+  url: https://ghorahimun.gov.np
+  source_type: government
+  category: sub_metropolitan
+  name_ne: घोराही उपमहानगरपालिका
+  scraper_class: municipality_scraper
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: sub_metropolitan
+- id: tulsipur
+  name: Tulsipur Sub-Metropolitan City
+  url: https://tulsipurmun.gov.np
+  source_type: government
+  category: sub_metropolitan
+  name_ne: तुलसीपुर उपमहानगरपालिका
+  scraper_class: municipality_scraper
+  priority: 3
+  poll_interval_mins: 180
+  meta:
+    group: sub_metropolitan
+- id: janakpurdham
+  name: Janakpurdham Sub-Metropolitan City
+  url: https://janakpurdhanmun.gov.np
+  source_type: government
+  category: sub_metropolitan
+  name_ne: जनकपुरधाम उपमहानगरपालिका
+  scraper_class: municipality_scraper
+  priority: 2
+  poll_interval_mins: 120
+  meta:
+    group: sub_metropolitan
