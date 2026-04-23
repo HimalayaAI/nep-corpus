@@ -76,7 +76,12 @@ python scripts/test_db_conn.py
 
 ### 4. Optional Rust Accelerator (Recommended)
 
-Build the Rust extension for 10x faster enrichment:
+- `extract_text()` — HTML to text extraction (3.1x speedup)
+- `detect_language()` — Nepali vs English detection (261K calls/sec)
+- `devanagari_ratio()` — Devanagari character ratio check
+- `clean_content()` — Text normalization + cleaning
+- `batch_*` operations — Parallel processing with Rayon (20+ CPU cores)
+- `UrlSet` — BLAKE3-based URL dedup (O(1) lookup)
 
 ```bash
 pip install maturin
@@ -101,17 +106,17 @@ If this succeeds, scale workers/pages gradually.
 
 ## Coordinator Commands
 
-Standard run:
+Standard run (all categories):
 
 ```bash
-python scripts/corpus_cli.py coordinator --categories Gov,News --workers 10 --max-pages 50
+python scripts/corpus_cli.py coordinator --categories Gov,News,Social --workers 10 --max-pages 50
 ```
 
-Production-style tuning:
+Production-style tuning (all sources):
 
 ```bash
 python scripts/corpus_cli.py coordinator \
-  --categories Gov,News \
+  --categories Gov,News,Social \
   --workers 20 \
   --rate-limit 1.5 \
   --max-concurrent 50 \
@@ -148,17 +153,6 @@ python scripts/check_enrichment_stats.py data/runs/<RUN_ID>/raw.jsonl
 
 Shows total records, enriched vs null records, sample URLs, and enrichment rate.
 
-## Optional Rust Accelerator
-
-**Rust Functions** (10-500x faster):
-- `extract_text()` — HTML to text extraction (3.1x speedup)
-- `detect_language()` — Nepali vs English detection (261K calls/sec)
-- `devanagari_ratio()` — Devanagari character ratio check
-- `clean_content()` — Text normalization + cleaning
-- `batch_*` operations — Parallel processing with Rayon (20+ CPU cores)
-- `UrlSet` — BLAKE3-based URL dedup (O(1) lookup)
-
-See **Step 4** in Quick Start above for build instructions.
 
 ## Linux Notes
 

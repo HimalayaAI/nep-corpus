@@ -88,14 +88,17 @@ class AsyncDatabase:
                 database="postgres",
             )
             try:
-                await temp_conn.execute(f"CREATE DATABASE {self.config.db_name}")
+                safe_name = self.config.db_name.replace('"', '""')
+                await temp_conn.execute(f'CREATE DATABASE "{safe_name}"')
                 logger.info("Created database %s", self.config.db_name)
             except DuplicateDatabaseError:
                 pass
             finally:
                 await temp_conn.close()
         except Exception as e:
-            logger.error("Database creation failed: %s", e)
+            import re as _re
+            safe_msg = _re.sub(r'password=[^\s)]+', 'password=***', str(e))
+            logger.error("Database creation failed: %s", safe_msg)
 
     async def execute(self, query: str, *args: Any) -> str:
         if not self.pool:

@@ -98,7 +98,7 @@ class SQLStorageService(StorageService):
             with open(self.schema_path, "r", encoding="utf-8") as f:
                 schema_sql = f.read()
             try:
-                async with self._db.safe_transaction() as conn:
+                async with self._db.transaction() as conn:
                     await conn.execute(schema_sql)
             except Exception as e:
                 logger.debug("Schema apply skipped or failed: %s", e)

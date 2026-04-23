@@ -226,25 +226,30 @@ def normalize_and_filter(
     nepali_ratio: float = 0.4,
     workers: int = 8,
 ) -> List[NormalizedDocument]:
+    from ..core.utils.normalize import batch_normalize_records, _HAS_RUST
+
     pairs = list(enriched_records)
     t0 = time.perf_counter()
 
-    def _process(pair):
-        rec, extracted = pair
-        doc = normalize_record(rec, enriched_text=extracted)
-        if not doc:
-            return None
-        doc.text = clean_text(doc.text)
-        if not min_length(doc, min_chars=min_chars):
-            return None
-        if not is_nepali(doc, min_ratio=nepali_ratio):
-            return None
-        return doc
+    if _HAS_RUST:
+        docs = batch_normalize_records(pairs, min_chars=min_chars, min_devanagari=nepali_ratio)
+    else:
+        def _process(pair):
+            rec, extracted = pair
+            doc = normalize_record(rec, enriched_text=extracted)
+            if not doc:
+                return None
+            doc.text = clean_text(doc.text)
+            if not min_length(doc, min_chars=min_chars):
+                return None
+            if not is_nepali(doc, min_ratio=nepali_ratio):
+                return None
+            return doc
 
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        results = list(executor.map(_process, pairs))
+        with ThreadPoolExecutor(max_workers=workers) as executor:
+            results = list(executor.map(_process, pairs))
+        docs = [d for d in results if d is not None]
 
-    docs = [d for d in results if d is not None]
     elapsed = time.perf_counter() - t0
     logger.info(
         "normalize_and_filter: %d in, %d passed, %.2fs (%.1f rec/s)",

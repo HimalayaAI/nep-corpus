@@ -55,6 +55,7 @@ class ScrapeState:
         self.urls_failed = 0
         self.docs_saved = 0
         self.pdf_saved = 0
+        self.jobs_completed = 0
         self.start_time: Optional[float] = None
         self.current_sources: List[str] = []
         self.errors: List[str] = []
@@ -67,6 +68,7 @@ class ScrapeState:
         self.urls_failed = 0
         self.docs_saved = 0
         self.pdf_saved = 0
+        self.jobs_completed = 0
         self.start_time = None
         self.current_sources = []
         self.errors = []
@@ -711,12 +713,8 @@ class ScrapeCoordinator:
         log_file: Optional[str] = None,
         num_sources: Optional[int] = None,
     ) -> None:
-        # Default OCR/PDF to False for News runs unless explicitly enabled
-        if categories and "News" in categories:
-            self._ocr_enabled = ocr_enabled if ocr_enabled is True else False
-        else:
-            self._ocr_enabled = ocr_enabled
-        self._pdf_enabled = pdf_enabled
+        self._ocr_enabled = bool(ocr_enabled)
+        self._pdf_enabled = bool(pdf_enabled)
         if log_file:
             self._setup_file_logging(log_file)
 
@@ -1079,6 +1077,7 @@ class ScrapeCoordinator:
                         )
                     except Exception:
                         pass
+                self.state.jobs_completed += 1
 
         # Handle queued PDFs after all scrapers are done
         if pdf_enabled and pdf_jobs and HAS_PYMUPDF:
@@ -1161,20 +1160,21 @@ class ScrapeCoordinator:
             new_urls.append(record.url)
 
         if new_records:
+            stored_ok = False
             try:
                 await session.store_raw_records(new_records)
+                stored_ok = True
             except Exception as exc:
                 logger.error("store_raw_records failed (continuing): %s", exc)
 
-            # Mark URLs as visited only after successful DB write
-            try:
-                await session.mark_urls_batch(new_urls)
-            except AttributeError:
-                for u in new_urls:
-                    await session.mark_url(u)
-
-            for url in new_urls:
-                self._visited_urls.add(url)
+            if stored_ok:
+                try:
+                    await session.mark_urls_batch(new_urls)
+                except AttributeError:
+                    for u in new_urls:
+                        await session.mark_url(u)
+                for url in new_urls:
+                    self._visited_urls.add(url)
 
             for record in new_records:
                 self.state.record_source(record.source_id, saved=1)
@@ -1267,11 +1267,12 @@ class ScrapeCoordinator:
             except Exception as e:
                 logger.error("Failed to store %d training documents: %s", len(final_docs), e)
         
-        try:
-            if records:
-                await session.store_raw_records(records)
-        except Exception as e:
-            logger.error("Failed to update raw records after enrichment: %s", e)
+        enriched_recs = [rec for rec, content in enriched if content]
+        if enriched_recs:
+            try:
+                await session.store_raw_records(enriched_recs)
+            except Exception as e:
+                logger.error("Failed to update raw records after enrichment: %s", e)
 
 
     async def _run_enrichment(
@@ -1334,8 +1335,10 @@ class ScrapeCoordinator:
                         rec.content = content
                     enriched_records.append(rec)
 
-            # Save enriched data back to raw file
-            save_raw_jsonl(enriched_records, output_path, gzip_output=gzip_output)
+            import shutil as _shutil
+            _tmp_path = output_path + ".enriching.tmp"
+            save_raw_jsonl(enriched_records, _tmp_path, gzip_output=gzip_output)
+            _shutil.move(_tmp_path, output_path)
 
             # --- Cross-document boilerplate removal via BoilerplateDetector ---
             # Group texts by domain for profile learning
@@ -1426,7 +1429,7 @@ class ScrapeCoordinator:
             await session.update_pipeline_run(
                 self._run_id,
                 status=final_status,
-                completed_jobs=self.state.docs_saved,
+                completed_jobs=self.state.jobs_completed,
                 total_records_scraped=self.state.urls_crawled,
                 total_records_saved=self.state.docs_saved,
                 completed_at=datetime.now(timezone.utc),
@@ -1492,12 +1495,14 @@ class ScrapeCoordinator:
         return isinstance(exc, (requests.ConnectionError, requests.Timeout))
 
     async def _probe_internet(self) -> bool:
-        """Probe a reliable host to see if internet is up."""
-        import requests
+        """Probe internet via DNS lookup — avoids HTTP which 8.8.8.8 does not serve."""
+        import socket
         try:
-            # Wrap in run_in_executor since requests.get is blocking
             loop = asyncio.get_running_loop()
-            await loop.run_in_executor(None, lambda: requests.get("https://8.8.8.8", timeout=5))
+            await loop.run_in_executor(
+                None,
+                lambda: socket.getaddrinfo("dns.google", 80, proto=socket.IPPROTO_TCP),
+            )
             return True
         except Exception:
             return False

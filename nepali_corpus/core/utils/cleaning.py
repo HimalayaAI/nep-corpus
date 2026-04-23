@@ -2,29 +2,23 @@ from __future__ import annotations
 
 from typing import Optional
 
-from .normalize import detect_nepali, normalize_text
+from .normalize import detect_nepali, normalize_text, _HAS_RUST, _rust
 from ..models import NormalizedDocument
 
 
 def clean_text(text: str) -> str:
-    try:
-        from rust_url_dedup import clean_content
-        return clean_content(text, 0)
-    except ImportError:
-        pass
+    if _HAS_RUST:
+        return _rust.clean_content(text, 0)
     return normalize_text(text)
 
 
 def is_nepali(doc: NormalizedDocument, min_ratio: float = 0.4) -> bool:
     if doc.language == "ne":
         return True
-    try:
-        from rust_url_dedup import detect_language
-        lang = detect_language(doc.text)
+    if _HAS_RUST:
+        lang = _rust.detect_language(doc.text)
         if lang:
             return lang == "ne"
-    except ImportError:
-        pass
     return detect_nepali(doc.text, min_ratio=min_ratio)
 
 

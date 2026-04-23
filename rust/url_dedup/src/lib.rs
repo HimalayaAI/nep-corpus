@@ -61,25 +61,27 @@ impl UrlSet {
     }
 }
 
-/// Fast Devanagari ratio — single pass, zero allocations.
+/// Fast Devanagari ratio — single pass, divides by alphabetic chars only.
 #[pyfunction]
 fn devanagari_ratio(text: &str) -> f64 {
     if text.is_empty() {
         return 0.0;
     }
-    let mut total: u64 = 0;
+    let mut alpha: u64 = 0;
     let mut devanagari: u64 = 0;
     for c in text.chars() {
-        total += 1;
-        let u = c as u32;
-        if (0x0900..=0x097F).contains(&u) {
-            devanagari += 1;
+        if c.is_alphabetic() {
+            alpha += 1;
+            let u = c as u32;
+            if (0x0900..=0x097F).contains(&u) {
+                devanagari += 1;
+            }
         }
     }
-    if total == 0 {
+    if alpha == 0 {
         0.0
     } else {
-        devanagari as f64 / total as f64
+        devanagari as f64 / alpha as f64
     }
 }
 
@@ -92,15 +94,17 @@ fn batch_devanagari_ratio(texts: Vec<String>) -> Vec<f64> {
             if t.is_empty() {
                 return 0.0;
             }
-            let mut total: u64 = 0;
+            let mut alpha: u64 = 0;
             let mut dev: u64 = 0;
             for c in t.chars() {
-                total += 1;
-                if (0x0900..=0x097Fu32).contains(&(c as u32)) {
-                    dev += 1;
+                if c.is_alphabetic() {
+                    alpha += 1;
+                    if (0x0900..=0x097Fu32).contains(&(c as u32)) {
+                        dev += 1;
+                    }
                 }
             }
-            if total == 0 { 0.0 } else { dev as f64 / total as f64 }
+            if alpha == 0 { 0.0 } else { dev as f64 / alpha as f64 }
         })
         .collect()
 }
@@ -336,8 +340,9 @@ fn clean_document(
         .filter(|l| !l.is_empty())
         .collect();
 
-    while !lines.is_empty() {
-        let ln = &lines[0];
+    let mut start = 0;
+    while start < lines.len() {
+        let ln = &lines[start];
         let ln_lower = ln.to_lowercase();
         let ln_clean = ln_lower.replace(' ', "");
 
@@ -347,7 +352,6 @@ fn clean_document(
                 ln_lower.starts_with(k.as_str()) && ln_lower.len() < k.len() + 5
             });
 
-        // Short nav lines (≤3 words, all nav keywords)
         let is_short_nav = if !is_nav && ln.split_whitespace().count() <= 3 {
             ln.split_whitespace()
                 .all(|w| nav_set.contains(&w.to_lowercase()))
@@ -356,11 +360,12 @@ fn clean_document(
         };
 
         if is_nav || is_short_nav {
-            lines.remove(0);
+            start += 1;
         } else {
             break;
         }
     }
+    let mut lines = lines.split_off(start);
 
     lines.retain(|ln| {
         let s = ln.trim();
@@ -475,27 +480,29 @@ fn batch_clean_documents(
                 .filter(|l| !l.is_empty())
                 .collect();
 
-            while !lines.is_empty() {
-                let ln_lower = lines[0].to_lowercase();
+            let mut start = 0;
+            while start < lines.len() {
+                let ln_lower = lines[start].to_lowercase();
                 let ln_clean = ln_lower.replace(' ', "");
                 let is_nav = nav_set.contains(&ln_lower)
                     || nav_set.contains(&ln_clean)
                     || nav_set.iter().any(|k| {
                         ln_lower.starts_with(k.as_str()) && ln_lower.len() < k.len() + 5
                     });
-                let is_short_nav = if !is_nav && lines[0].split_whitespace().count() <= 3 {
-                    lines[0]
+                let is_short_nav = if !is_nav && lines[start].split_whitespace().count() <= 3 {
+                    lines[start]
                         .split_whitespace()
                         .all(|w| nav_set.contains(&w.to_lowercase()))
                 } else {
                     false
                 };
                 if is_nav || is_short_nav {
-                    lines.remove(0);
+                    start += 1;
                 } else {
                     break;
                 }
             }
+            let mut lines = lines.split_off(start);
 
             lines.retain(|ln| {
                 let s = ln.trim();

@@ -16,7 +16,7 @@ benchmarks/
 venv/
 env/
 ENV/
-
+now 
 # OS generated
 .DS_Store
 .DS_Store?
@@ -24,6 +24,8 @@ ENV/
 # Logs/PIDs
 *.log
 *.pid
+.dashboard.pid
+dashboard.log
 
 # Distribution / packaging
 .Python
