@@ -27,6 +27,7 @@ from ..core.utils.enhanced_enrichment import (
     enhanced_fetch_content,
     _needs_js_rendering,
 )
+from ..core.services.scrapers.universal_scraper import UniversalScraper
 from ..core.utils.export import export_jsonl
 from ..core.utils.io import ensure_parent_dir, maybe_gzip_path, open_text
 
@@ -171,6 +172,18 @@ def load_normalized_jsonl(path: str) -> List[NormalizedDocument]:
 logger = logging.getLogger(__name__)
 
 
+def _is_government_url(url: str) -> bool:
+    """Check if URL is from a government site (needs PDF handling)"""
+    gov_domains = [
+        '.gov.np', 'moha.gov.np', 'mof.gov.np', 'moe.gov.np',
+        'nta.gov.np', 'caanepal.gov.np', 'immigration.gov.np',
+        'kathmandu.gov.np', 'pokharamun.gov.np', 'lalitpur.gov.np',
+        'bharatpur.gov.np', 'daokathmandu.moha.gov.np', 'dao',
+    ]
+    url_lower = url.lower()
+    return any(domain in url_lower for domain in gov_domains)
+
+
 def enrich_records(
     records: Iterable[RawRecord],
     cache_dir: str,
@@ -188,16 +201,22 @@ def enrich_records(
     logger.info("Enriching %d records with %d workers", total, max_workers)
     t0 = time.perf_counter()
 
+    # Create shared UniversalScraper instance
+    universal_scraper = UniversalScraper(cache_dir=cache_dir)
+    
     def _enrich_one(index: int, rec: RawRecord):
         text = rec.content or rec.summary or ""
         if min_enrich_len > 0 and len(text) >= min_enrich_len:
             enriched[index] = (rec, None)
         else:
             try:
-                # Use enhanced enrichment for problematic sites
-                use_enhanced = _needs_js_rendering(rec.url)
-                
-                if use_enhanced:
+                # Route government URLs through UniversalScraper (handles PDFs/images)
+                if _is_government_url(rec.url):
+                    logger.debug("Using UniversalScraper for gov URL: %s", rec.url)
+                    result = universal_scraper.scrape(rec.url)
+                    extracted = result['text'] if result['success'] else None
+                # Use enhanced enrichment for JS-heavy sites
+                elif _needs_js_rendering(rec.url):
                     data, content_type = enhanced_fetch_content(
                         rec.url, cache_dir=cache_dir, timeout=45, delay=1.5
                     )
@@ -209,6 +228,7 @@ def enrich_records(
                         pdf_enabled=pdf_enabled,
                         cache_dir=cache_dir,
                     ) if data else None
+                # Use standard extraction for normal sites
                 else:
                     data, content_type = fetch_content(rec.url, cache_dir=cache_dir)
                     extracted = extract_text(
