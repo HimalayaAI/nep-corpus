@@ -670,3 +670,312 @@
   meta:
     query: Nepal booth capturing
     type: search
+- id: social:parliament_np
+  name: Parliament of Nepal
+  url: https://nitter.poast.org/parliament_np
+  source_type: social
+  category: govt
+  meta:
+    username: parliament_np
+    type: account
+- id: social:HouseOfRepNepal
+  name: House of Representatives Nepal
+  url: https://nitter.poast.org/HouseOfRepNepal
+  source_type: social
+  category: govt
+  meta:
+    username: HouseOfRepNepal
+    type: account
+- id: social:SupremeCourtNepal
+  name: Supreme Court of Nepal
+  url: https://nitter.poast.org/SupremeCourtNepal
+  source_type: social
+  category: judiciary
+  meta:
+    username: SupremeCourtNepal
+    type: account
+- id: social:judicialcouncil
+  name: Judicial Council Nepal
+  url: https://nitter.poast.org/judicialcouncil
+  source_type: social
+  category: judiciary
+  meta:
+    username: judicialcouncil
+    type: account
+- id: search:Supreme Court Nepal
+  name: Supreme Court Judgments
+  url: https://nitter.poast.org/search?q=Supreme Court Nepal judgment
+  source_type: social
+  category: search
+  meta:
+    query: Supreme Court Nepal judgment
+    type: search
+- id: search:Nepal legal news
+  name: Nepal Legal News
+  url: https://nitter.poast.org/search?q=Nepal legal governance
+  source_type: social
+  category: search
+  meta:
+    query: Nepal legal governance
+    type: search
+# --- Additional Political Figures ---
+- id: social:RamKumariJhakri
+  name: Ram Kumari Jhakri (NC)
+  url: https://nitter.poast.org/RamKumariJhakri
+  source_type: social
+  category: political
+  meta:
+    username: RamKumariJhakri
+    type: account
+- id: social:DrSandeshLamsal
+  name: Dr. Sandesh Lamsal
+  url: https://nitter.poast.org/DrSandeshLamsal
+  source_type: social
+  category: influencer
+  meta:
+    username: DrSandeshLamsal
+    type: account
+- id: social:SitaDahal
+  name: Sita Dahal (Activist)
+  url: https://nitter.poast.org/SitaDahal
+  source_type: social
+  category: political
+  meta:
+    username: SitaDahal
+    type: account
+- id: social:RamSharanMahat
+  name: Ram Sharan Mahat (NC)
+  url: https://nitter.poast.org/RamSharanMahat
+  source_type: social
+  category: political
+  meta:
+    username: RamSharanMahat
+    type: account
+- id: social:UpendraYadavJSP
+  name: Upendra Yadav (JSP)
+  url: https://nitter.poast.org/UpendraYadavJSP
+  source_type: social
+  category: political
+  meta:
+    username: UpendraYadavJSP
+    type: account
+- id: social:MinendraRijal
+  name: Minendra Rijal (NC)
+  url: https://nitter.poast.org/MinendraRijal
+  source_type: social
+  category: political
+  meta:
+    username: MinendraRijal
+    type: account
+- id: social:PradeepGyawali
+  name: Pradeep Gyawali (CPN-UML)
+  url: https://nitter.poast.org/PradeepGyawali
+  source_type: social
+  category: political
+  meta:
+    username: PradeepGyawali
+    type: account
+- id: social:PrithviSubbaGurung
+  name: Prithvi Subba Gurung (Gandaki CM)
+  url: https://nitter.poast.org/PrithviSubbaGurung
+  source_type: social
+  category: political
+  meta:
+    username: PrithviSubbaGurung
+    type: account
+# --- Additional Media / News Accounts ---
+- id: social:ratabornepal
+  name: Ratopati (Official)
+  url: https://nitter.poast.org/ratabornepal
+  source_type: social
+  category: news
+  meta:
+    username: ratabornepal
+    type: account
+- id: social:NepaliTimes
+  name: Nepali Times
+  url: https://nitter.poast.org/NepaliTimes
+  source_type: social
+  category: news
+  meta:
+    username: NepaliTimes
+    type: account
+- id: social:HimalSouthasian
+  name: Himal Southasian
+  url: https://nitter.poast.org/HimalSouthasian
+  source_type: social
+  category: news
+  meta:
+    username: HimalSouthasian
+    type: account
+- id: social:SetopatiOnline
+  name: Setopati
+  url: https://nitter.poast.org/SetopatiOnline
+  source_type: social
+  category: news
+  meta:
+    username: SetopatiOnline
+    type: account
+- id: social:TheRisingNepal
+  name: The Rising Nepal
+  url: https://nitter.poast.org/TheRisingNepal
+  source_type: social
+  category: news
+  meta:
+    username: TheRisingNepal
+    type: account
+- id: social:News24Nepal
+  name: News24 Nepal
+  url: https://nitter.poast.org/News24Nepal
+  source_type: social
+  category: news
+  meta:
+    username: News24Nepal
+    type: account
+- id: social:KantipurDaily
+  name: Kantipur Daily
+  url: https://nitter.poast.org/KantipurDaily
+  source_type: social
+  category: news
+  meta:
+    username: KantipurDaily
+    type: account
+- id: social:HimalayanTimes
+  name: The Himalayan Times
+  url: https://nitter.poast.org/HimalayanTimes
+  source_type: social
+  category: news
+  meta:
+    username: HimalayanTimes
+    type: account
+- id: social:GorkhapatraDaily
+  name: Gorkhapatra Daily
+  url: https://nitter.poast.org/GorkhapatraDaily
+  source_type: social
+  category: news
+  meta:
+    username: GorkhapatraDaily
+    type: account
+# --- Tech / Business / Civil Society ---
+- id: social:SulavAcharya
+  name: Sulav Acharya (Tech Entrepreneur)
+  url: https://nitter.poast.org/SulavAcharya
+  source_type: social
+  category: tech
+  meta:
+    username: SulavAcharya
+    type: account
+- id: social:ABORNEPAL
+  name: Association of Broadcasters Nepal
+  url: https://nitter.poast.org/ABORNEPAL
+  source_type: social
+  category: media
+  meta:
+    username: ABORNEPAL
+    type: account
+- id: social:FNJnepal
+  name: Federation of Nepali Journalists
+  url: https://nitter.poast.org/FNJnepal
+  source_type: social
+  category: media
+  meta:
+    username: FNJnepal
+    type: account
+- id: social:NRNAtwitterHQ
+  name: Non-Resident Nepali Association
+  url: https://nitter.poast.org/NRNAtwitterHQ
+  source_type: social
+  category: diaspora
+  meta:
+    username: NRNAtwitterHQ
+    type: account
+# --- Additional Hashtags (Nepali) ---
+- id: hashtag:शिक्षा
+  name: Education (Nepali)
+  url: https://nitter.poast.org/search?q=%23शिक्षा
+  source_type: social
+  category: hashtag
+  meta:
+    tag: शिक्षा
+    type: hashtag
+- id: hashtag:अर्थतन्त्र
+  name: Economy (Nepali)
+  url: https://nitter.poast.org/search?q=%23अर्थतन्त्र
+  source_type: social
+  category: hashtag
+  meta:
+    tag: अर्थतन्त्र
+    type: hashtag
+- id: hashtag:प्रविधि
+  name: Technology (Nepali)
+  url: https://nitter.poast.org/search?q=%23प्रविधि
+  source_type: social
+  category: hashtag
+  meta:
+    tag: प्रविधि
+    type: hashtag
+- id: hashtag:स्वास्थ्य
+  name: Health (Nepali)
+  url: https://nitter.poast.org/search?q=%23स्वास्थ्य
+  source_type: social
+  category: hashtag
+  meta:
+    tag: स्वास्थ्य
+    type: hashtag
+- id: hashtag:NepaliLiterature
+  name: Nepali Literature
+  url: https://nitter.poast.org/search?q=%23NepaliLiterature
+  source_type: social
+  category: hashtag
+  meta:
+    tag: NepaliLiterature
+    type: hashtag
+- id: hashtag:VisitNepal
+  name: Visit Nepal
+  url: https://nitter.poast.org/search?q=%23VisitNepal
+  source_type: social
+  category: hashtag
+  meta:
+    tag: VisitNepal
+    type: hashtag
+# --- Additional Search Queries ---
+- id: search:Nepal economy budget
+  name: Nepal Economy Coverage
+  url: https://nitter.poast.org/search?q=Nepal economy budget 2082
+  source_type: social
+  category: search
+  meta:
+    query: Nepal economy budget 2082
+    type: search
+- id: search:Nepal education reform
+  name: Nepal Education Reform
+  url: https://nitter.poast.org/search?q=Nepal education reform
+  source_type: social
+  category: search
+  meta:
+    query: Nepal education reform
+    type: search
+- id: search:Nepal climate change
+  name: Nepal Climate Change
+  url: https://nitter.poast.org/search?q=Nepal climate change glacier
+  source_type: social
+  category: search
+  meta:
+    query: Nepal climate change glacier
+    type: search
+- id: search:Nepal tech startup
+  name: Nepal Tech Startups
+  url: https://nitter.poast.org/search?q=Nepal tech startup digital
+  source_type: social
+  category: search
+  meta:
+    query: Nepal tech startup digital
+    type: search
+- id: search:Nepal diaspora remittance
+  name: Nepal Diaspora & Remittance
+  url: https://nitter.poast.org/search?q=Nepal diaspora remittance
+  source_type: social
+  category: search
+  meta:
+    query: Nepal diaspora remittance
+    type: search

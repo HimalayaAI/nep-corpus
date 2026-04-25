@@ -43,14 +43,51 @@ async def _download_pdf(
     session: aiohttp.ClientSession,
     url: str,
     timeout: int,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
 ) -> Optional[bytes]:
-    try:
-        async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
-            if resp.status != 200:
-                return None
-            return await resp.read()
-    except Exception:
-        return None
+    """Download PDF with exponential backoff retry on failures.
+    
+    Args:
+        session: aiohttp client session
+        url: PDF URL to download
+        timeout: Timeout per attempt in seconds
+        max_retries: Maximum number of retry attempts
+        base_delay: Initial delay between retries (exponentially increased)
+    
+    Returns:
+        PDF bytes if successful, None otherwise
+    """
+    last_exception = None
+    
+    for attempt in range(max_retries):
+        try:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
+                if resp.status == 200:
+                    return await resp.read()
+                elif resp.status >= 500:  # Server error - retry
+                    last_exception = Exception(f"HTTP {resp.status}")
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)
+                        await asyncio.sleep(delay)
+                    continue
+                else:  # Client error or 4xx - don't retry
+                    return None
+        except asyncio.TimeoutError as e:
+            last_exception = e
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)
+                await asyncio.sleep(delay)
+            continue
+        except Exception as e:
+            last_exception = e
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)
+                await asyncio.sleep(delay)
+            continue
+    
+    # Failed after all retries
+    return None
 
 
 async def _handle_job(

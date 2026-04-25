@@ -8,6 +8,14 @@ __pycache__/
 data/
 benchmarks/
 
+# Cache directories
+.enrich_cache/
+.checkpoints/
+.test_cache/
+.test_cache2/
+.report_cache/
+logs/
+
 # Environments
 .env
 .env.local
@@ -56,3 +64,4 @@ Thumbs.db
 # Rust
 rust/url_dedup/target/
 rust/*/Cargo.lock
+rust/url_dedup/src/test_lib.rs

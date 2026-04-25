@@ -21,4 +21,14 @@ def fetch_regulatory(*args, **kwargs):
     from .regulatory_scraper import fetch_raw_records
     return fetch_raw_records(*args, **kwargs)
 
-__all__ = ["fetch_news_rss", "fetch_ekantipur", "fetch_govt", "fetch_dao", "fetch_regulatory"]
+
+def scrape_universal(url: str, **kwargs):
+    """Universal scraper - works with any URL"""
+    from .universal_scraper import scrape_universal
+    return scrape_universal(url, **kwargs)
+
+
+__all__ = [
+    "fetch_news_rss", "fetch_ekantipur", "fetch_govt", "fetch_dao",
+    "fetch_regulatory", "scrape_universal"
+]

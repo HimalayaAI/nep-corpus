@@ -25,6 +25,7 @@ import os
 import re
 import time
 from typing import Dict, List, Optional
+from urllib.parse import urlparse
 
 from bs4 import BeautifulSoup
 import urllib3
@@ -429,9 +430,24 @@ def fetch_registry_records(
 
     ministry_configs: Dict[str, MinistryConfig] = {}
     regulatory_entries: List[RegistryEntry] = []
+    metropolitan_entries: List[RegistryEntry] = []
+    enhanced_regulatory_entries: List[RegistryEntry] = []
     other_entries: List[RegistryEntry] = []
+    
+    # Sites that need enhanced scraping
+    problematic_domains = [
+        'nta.gov.np', 'caanepal.gov.np', 'immigration.gov.np',
+        'customs.gov.np', 'ccmc.gov.np', 'dor.gov.np', 'apf.gov.np',
+        'nso.gov.np', 'npc.gov.np', 'kvda.gov.np'
+    ]
+    metropolitan_domains = [
+        'kathmandu.gov.np', 'pokharamun.gov.np', 'lalitpur.gov.np',
+        'bharatpur.gov.np', 'biratnagar.gov.np'
+    ]
 
     for entry in entries:
+        domain = urlparse(entry.base_url or "").netloc.lower()
+        
         if entry.scraper_class == "ministry_generic":
             if entry.source_id and entry.base_url:
                 ministry_configs[entry.source_id] = MinistryConfig(
@@ -442,12 +458,18 @@ def fetch_registry_records(
                     endpoints=entry.endpoints,
                     priority=entry.priority,
                 )
+        elif entry.scraper_class in ["metropolitan", "municipality_scraper"] or any(d in domain for d in metropolitan_domains):
+            metropolitan_entries.append(entry)
+        elif entry.scraper_class == "enhanced_regulatory" or any(d in domain for d in problematic_domains):
+            enhanced_regulatory_entries.append(entry)
         elif entry.scraper_class == "regulatory":
             regulatory_entries.append(entry)
         else:
             other_entries.append(entry)
 
     records: List[RawRecord] = []
+    
+    # Ministry generic scraper
     if ministry_configs:
         records.extend(
             fetch_raw_records(
@@ -457,10 +479,22 @@ def fetch_registry_records(
             )
         )
 
+    # Metropolitan scraper (kathmandu, pokhara, etc.)
+    if metropolitan_entries:
+        from .metropolitan_scraper import fetch_raw_records as fetch_metropolitan
+        records.extend(fetch_metropolitan(metropolitan_entries, pages=max(1, pages)))
+
+    # Enhanced regulatory scraper (for stubborn sites)
+    if enhanced_regulatory_entries:
+        from .enhanced_regulatory_scraper import fetch_raw_records as fetch_enhanced_regulatory
+        records.extend(fetch_enhanced_regulatory(enhanced_regulatory_entries, pages=max(1, pages)))
+
+    # Regular regulatory scraper
     if regulatory_entries:
         from .regulatory_scraper import fetch_raw_records as fetch_regulatory
         records.extend(fetch_regulatory(regulatory_entries, pages=max(1, pages)))
 
+    # Other entries with basic regulatory scraper
     if other_entries:
         from .regulatory_scraper import fetch_raw_records as fetch_regulatory
         records.extend(fetch_regulatory(other_entries, pages=1))

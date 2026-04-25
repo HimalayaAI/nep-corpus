@@ -44,7 +44,7 @@ def cmd_ingest(args: argparse.Namespace) -> None:
 
     async def _run_ingest():
         storage = EnvStorageService()
-        await storage.initialize()
+        await storage.initialize(num_workers=getattr(args, 'workers', 4))
         session = storage.create_session()
         
         writer = JsonlWriter(output, gzip_output=args.gzip)
@@ -155,7 +155,7 @@ def cmd_all(args: argparse.Namespace) -> None:
 
     async def _run_pipeline():
         storage = EnvStorageService()
-        await storage.initialize()
+        await storage.initialize(num_workers=getattr(args, 'workers', 4))
         session = storage.create_session()
         
         # 1. SCRAPE (Incremental)
@@ -260,7 +260,7 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
 
     async def _run():
         storage = EnvStorageService()
-        await storage.initialize()
+        await storage.initialize(num_workers=args.workers)
         coordinator = ScrapeCoordinator(
             storage,
             enrichment_batch_size=args.enrichment_batch_size,
@@ -278,7 +278,7 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
         loop = asyncio.get_running_loop()
 
         def _on_signal():
-            print("\n⚠️  Shutdown signal received — finishing in-flight jobs...")
+            print("\nShutdown signal received — finishing in-flight jobs...")
             coordinator.request_shutdown()
 
         for sig in (signal.SIGTERM, signal.SIGINT):
@@ -318,7 +318,7 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
                 await asyncio.sleep(1)
 
         except KeyboardInterrupt:
-            print("\n⚠️  KeyboardInterrupt — flushing...")
+            print("\n  KeyboardInterrupt — flushing...")
             coordinator.request_shutdown()
             await asyncio.sleep(1)
         finally:
@@ -352,7 +352,7 @@ def cmd_rerun_failed(args: argparse.Namespace) -> None:
 
     async def _run():
         storage = EnvStorageService()
-        await storage.initialize()
+        await storage.initialize(num_workers=args.enrichment_workers)
         coordinator = ScrapeCoordinator(
             storage,
             enrichment_workers=args.enrichment_workers,
@@ -386,7 +386,7 @@ def cmd_seed_hf_urls(args: argparse.Namespace) -> None:
 
     async def _run():
         storage = EnvStorageService()
-        await storage.initialize()
+        await storage.initialize(num_workers=1)
 
         cache_path = args.cache_path
         os.makedirs(os.path.dirname(cache_path), exist_ok=True)
@@ -610,9 +610,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_coord.add_argument("--enrichment-workers", type=int, default=10,
                          dest="enrichment_workers",
                          help="Parallel workers for content extraction (default: 10)")
-    p_coord.add_argument("--skip-successful", action="store_true",
-                         dest="skip_successful",
-                         help="Skip only URLs that already have training data (retry failures)")
+    p_coord.add_argument("--no-skip-successful", action="store_false",
+                         dest="skip_successful", default=True,
+                         help="Skip ALL previously visited URLs, not just successful ones")
     p_coord.add_argument("--ocr", action="store_true", default=False,
                          help="Enable image OCR (slow, default: False)")
     p_coord.add_argument("--pdf", action="store_true", default=False,

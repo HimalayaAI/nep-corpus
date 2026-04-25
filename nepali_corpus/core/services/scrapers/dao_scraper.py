@@ -335,13 +335,21 @@ def fetch_raw_records(
 
     if districts:
         for dk in districts:
-            posts = scraper.scrape_district(dk, category, pages)
-            records.extend(post_to_raw(p) for p in posts)
+            try:
+                posts = scraper.scrape_district(dk, category, pages)
+                records.extend(post_to_raw(p) for p in posts)
+            except Exception as e:
+                logger.warning(f"Skipping DAO {dk} due to error: {e}")
+                continue
         return records
 
     for dk in DAOScraper.PRIORITY_DISTRICTS:
-        posts = scraper.scrape_district(dk, category, pages)
-        records.extend(post_to_raw(p) for p in posts)
+        try:
+            posts = scraper.scrape_district(dk, category, pages)
+            records.extend(post_to_raw(p) for p in posts)
+        except Exception as e:
+            logger.warning(f"Skipping DAO {dk} due to error: {e}")
+            continue
 
     return records
 

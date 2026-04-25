@@ -59,16 +59,29 @@ def normalize_record(
     enriched_text: Optional[str] = None,
     default_language: str = "ne",
 ) -> Optional[NormalizedDocument]:
-    text = normalize_text(pick_best_text(record, enriched_text))
+    text = pick_best_text(record, enriched_text)
+    
+    try:
+        from rust_url_dedup import clean_content
+        text = clean_content(text, 0)
+    except ImportError:
+        text = normalize_text(text)
+        
     if not text:
         return None
 
     # Smarter language detection based on character analysis
-    ratio = devanagari_ratio(text)
-    if ratio >= 0.15:
-        language = "ne"
-    else:
-        language = "en"
+    try:
+        from rust_url_dedup import detect_language
+        lang = detect_language(text)
+        if lang:
+            language = lang
+        else:
+            ratio = devanagari_ratio(text)
+            language = "ne" if ratio >= 0.15 else "en"
+    except ImportError:
+        ratio = devanagari_ratio(text)
+        language = "ne" if ratio >= 0.15 else "en"
 
     doc = NormalizedDocument(
         id=make_doc_id(record.source_id, record.url),

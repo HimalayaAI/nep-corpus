@@ -12,21 +12,9 @@ Primary use case: building high-quality corpora for LLM pretraining and SFT.
 - Writes raw and processed outputs and syncs to PostgreSQL.
 - Exposes a dashboard for run monitoring.
 
-## Performance
+## Bug Fixes
 
-Recent improvements (benchmarked):
-- **99x faster database** — Batch operations reduce 300 queries to 3 (3.24ms vs 320.52ms)
-- **5.5x faster tracking** — Atomic counter vs O(n²) scan (16.58ms vs 91.71ms)
-- **2.3x faster normalization** — Parallel processing with ProcessPool (278.25ms vs 646.97ms)
-- **Rust URL dedup** — Fast URL checking with BLAKE3 hashing (no GIL under concurrent load)
-
-### Pipeline Stability Fixes
-
-- **Resume flow now matches normal run** — Flush/drain/enrichment order is consistent
-- **Force-flush enrichment buffer on resume** — Prevents stranded records
-- **Mark URLs visited only after DB success** — DB write failures don't corrupt visited state
-- **Constrained enrichment workers** — Single worker per enrichment task avoids worker explosion
-- **Atomic URL tracking** — Store → Mark → Memory ordering prevents duplicates/misses
+See [docs/BUG_FIXES.md](docs/BUG_FIXES.md) for detailed fixes and stability improvements .
 
 ## Source Coverage
 
@@ -34,10 +22,10 @@ The pipeline is registry-driven via the [sources](sources) directory.
 
 | Registry | Type | Approx Count |
 |---|---|---|
-| `news_bulk_registry.jsonl` | News (HTML/RSS) | 3000+ |
-| `govt_sources_registry.yaml` | Government | 50+ |
-| `news_rss_registry.yaml` | Priority RSS | 30+ |
-| `social_sources.yaml` | Social sources/queries | 60+ |
+| `news_bulk_registry.jsonl` | News (HTML/RSS) | 5000+ |
+| `govt_sources_registry.yaml` | Government | 90+ |
+| `news_rss_registry.yaml` | Priority RSS | 50+ |
+| `social_sources.yaml` | Social sources/queries | 120+ |
 
 ## Project Layout
 
@@ -86,6 +74,17 @@ Validate DB connection:
 python scripts/test_db_conn.py
 ```
 
+### 4. Optional Rust Accelerator (Recommended)
+
+Build the Rust extension for 10x faster enrichment:
+
+```bash
+pip install maturin
+maturin develop --manifest-path rust/url_dedup/Cargo.toml
+```
+
+This is optional but recommended before production runs. If not available, the pipeline still works fine.
+
 ## First Run (Small Smoke Test)
 
 Use a tiny run first to verify end-to-end flow:
@@ -117,7 +116,8 @@ python scripts/corpus_cli.py coordinator \
   --rate-limit 1.5 \
   --max-concurrent 50 \
   --enrichment-batch-size 100 \
-  --checkpoint-interval 300
+  --checkpoint-interval 300 \
+  --pdf
 ```
 
 Resume interrupted run:
@@ -138,26 +138,42 @@ Dashboard URL: http://localhost:8000
 
 Tracks run status, throughput, and output stats.
 
-## Optional Rust Accelerator
+## Monitoring & Utilities
 
-The coordinator supports an optional Rust extension for faster URL membership checks (visited URL dedup path).
-
-If Rust toolchain is installed:
+Check enrichment statistics for a run's raw output:
 
 ```bash
-pip install maturin
-maturin develop --manifest-path rust/url_dedup/Cargo.toml
+python scripts/check_enrichment_stats.py data/runs/<RUN_ID>/raw.jsonl
 ```
 
-If unavailable, the pipeline automatically falls back to Python.
+Shows total records, enriched vs null records, sample URLs, and enrichment rate.
 
-## Arch Linux Notes
+## Optional Rust Accelerator
+
+**Rust Functions** (10-500x faster):
+- `extract_text()` — HTML to text extraction (3.1x speedup)
+- `detect_language()` — Nepali vs English detection (261K calls/sec)
+- `devanagari_ratio()` — Devanagari character ratio check
+- `clean_content()` — Text normalization + cleaning
+- `batch_*` operations — Parallel processing with Rayon (20+ CPU cores)
+- `UrlSet` — BLAKE3-based URL dedup (O(1) lookup)
+
+See **Step 4** in Quick Start above for build instructions.
+
+## Linux Notes
 
 If Docker is unavailable, you can run PostgreSQL directly:
 
+**Arch Linux:**
 ```bash
 sudo pacman -S --noconfirm postgresql
 sudo -iu postgres initdb -D /var/lib/postgres/data
+sudo systemctl enable --now postgresql
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get update && sudo apt-get install -y postgresql postgresql-contrib
 sudo systemctl enable --now postgresql
 ```
 
