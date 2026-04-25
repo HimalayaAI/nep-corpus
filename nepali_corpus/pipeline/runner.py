@@ -22,6 +22,11 @@ from ..core.services.storage.env_storage import EnvStorageService
 from ..core.utils.cleaning import clean_text, is_nepali, min_length
 from ..core.utils.dedup import deduplicate
 from ..core.utils.enrichment import extract_text, fetch_content
+from ..core.utils.enhanced_enrichment import (
+    extract_text_enhanced,
+    enhanced_fetch_content,
+    _needs_js_rendering,
+)
 from ..core.utils.export import export_jsonl
 from ..core.utils.io import ensure_parent_dir, maybe_gzip_path, open_text
 
@@ -189,14 +194,31 @@ def enrich_records(
             enriched[index] = (rec, None)
         else:
             try:
-                data, content_type = fetch_content(rec.url, cache_dir=cache_dir)
-                extracted = extract_text(
-                    data,
-                    content_type=content_type,
-                    url=rec.url,
-                    ocr_enabled=ocr_enabled,
-                    pdf_enabled=pdf_enabled,
-                ) if data else None
+                # Use enhanced enrichment for problematic sites
+                use_enhanced = _needs_js_rendering(rec.url)
+                
+                if use_enhanced:
+                    data, content_type = enhanced_fetch_content(
+                        rec.url, cache_dir=cache_dir, timeout=45, delay=1.5
+                    )
+                    extracted = extract_text_enhanced(
+                        data,
+                        content_type=content_type,
+                        url=rec.url,
+                        ocr_enabled=ocr_enabled,
+                        pdf_enabled=pdf_enabled,
+                        cache_dir=cache_dir,
+                    ) if data else None
+                else:
+                    data, content_type = fetch_content(rec.url, cache_dir=cache_dir)
+                    extracted = extract_text(
+                        data,
+                        content_type=content_type,
+                        url=rec.url,
+                        ocr_enabled=ocr_enabled,
+                        pdf_enabled=pdf_enabled,
+                    ) if data else None
+                
                 enriched[index] = (rec, extracted)
             except Exception as e:
                 logger.warning("Error enriching %s: %s", rec.url, e)
