@@ -22,16 +22,6 @@ def fetch_regulatory(*args, **kwargs):
     return fetch_raw_records(*args, **kwargs)
 
 
-def fetch_enhanced_regulatory(*args, **kwargs):
-    from .enhanced_regulatory_scraper import fetch_raw_records
-    return fetch_raw_records(*args, **kwargs)
-
-
-def fetch_metropolitan(*args, **kwargs):
-    from .metropolitan_scraper import fetch_raw_records
-    return fetch_raw_records(*args, **kwargs)
-
-
 def scrape_universal(url: str, **kwargs):
     """Universal scraper - works with any URL"""
     from .universal_scraper import scrape_universal
@@ -40,6 +30,5 @@ def scrape_universal(url: str, **kwargs):
 
 __all__ = [
     "fetch_news_rss", "fetch_ekantipur", "fetch_govt", "fetch_dao",
-    "fetch_regulatory", "fetch_enhanced_regulatory", "fetch_metropolitan",
-    "scrape_universal"
+    "fetch_regulatory", "scrape_universal"
 ]
