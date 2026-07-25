@@ -17,8 +17,15 @@ def fetch_dao(*args, **kwargs):
     from .dao_scraper import fetch_raw_records
     return fetch_raw_records(*args, **kwargs)
 
+
 def fetch_regulatory(*args, **kwargs):
     from .regulatory_scraper import fetch_raw_records
     return fetch_raw_records(*args, **kwargs)
 
-__all__ = ["fetch_news_rss", "fetch_ekantipur", "fetch_govt", "fetch_dao", "fetch_regulatory"]
+
+def fetch_jawafdehi(*args, **kwargs):
+    from .jawafdehi_scraper import fetch_jawafdehi_records
+    return fetch_jawafdehi_records(*args, **kwargs)
+
+
+__all__ = ["fetch_news_rss", "fetch_ekantipur", "fetch_govt", "fetch_dao", "fetch_regulatory", "fetch_jawafdehi"]
