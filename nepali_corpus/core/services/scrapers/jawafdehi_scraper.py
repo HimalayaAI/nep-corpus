@@ -78,10 +78,12 @@ MAX_RETRIES = 4
 RETRY_BACKOFF_BASE = 2.0
 
 # Download configuration
-DOWNLOAD_WORKERS = 128
+DOWNLOAD_WORKERS = 8  # Reduced from 128 to prevent memory exhaustion
 BATCH_SIZE = 500
 MAX_FILES_PER_REPO = 95000  # HF hard limit is ~100k files/repo
 FOLDER_CAPACITY = 9000  # Max files per HF folder
+MAX_DOWNLOAD_BYTES = 100 * 1024 * 1024  # 100MB max per file
+CHUNK_SIZE = 8192  # 8KB chunks for streaming download
 
 # Manifest files
 MATERIALS_LIST = "materials_list.jsonl"
@@ -109,6 +111,28 @@ def request_with_retries(method, url, **kwargs):
             else:
                 logger.warning(f"Giving up on {url} after {MAX_RETRIES} attempts: {e}")
     raise last_exc
+
+
+def normalize_title(item: Dict) -> str:
+    """Normalize title from language mapping or plain string.
+    
+    Live API returns titles like {'ne': '...', 'en': None}.
+    We prefer 'ne', fallback to 'en', then use default.
+    """
+    title = item.get("title", "")
+    if isinstance(title, dict):
+        # Prefer Nepali, fallback to English, then default
+        normalized = title.get("ne") or title.get("en")
+        if normalized:
+            title = normalized
+        else:
+            return "Legal Document"
+    if not title or len(str(title)) < 5:
+        return "Legal Document"
+    # Truncate long titles
+    if len(str(title)) > 200:
+        return str(title)[:197] + "..."
+    return str(title)
 
 
 # ============================================================================
@@ -374,17 +398,43 @@ class JawafdehiDownloader(ScraperBase):
             dest = os.path.join(out_dir, fname)
             
             try:
-                resp = request_with_retries(requests.get, content_url, headers=HEADERS, timeout=60)
+                # FIX: Stream download in chunks instead of loading entire file into memory
+                resp = request_with_retries(requests.get, content_url, headers=HEADERS, timeout=60, stream=True)
                 resp.raise_for_status()
+                
+                # Check Content-Length if available
+                content_length = resp.headers.get('Content-Length')
+                if content_length and int(content_length) > MAX_DOWNLOAD_BYTES:
+                    errors.append(f"{content_url} -> file too large ({content_length} bytes)")
+                    logger.debug(f"{material_url}: skipping {content_url} - too large")
+                    continue
+                
+                # Stream to disk in chunks
+                bytes_downloaded = 0
                 with open(dest, "wb") as f:
-                    f.write(resp.content)
-                downloaded_files.append({
-                    "local_path": dest,
-                    "bytes": len(resp.content),
-                    "content_url": content_url,
-                    "encoding_format": encoding_format,
-                    "link_role": m.get("jawafdehi:linkRole"),
-                })
+                    for chunk in resp.iter_content(chunk_size=CHUNK_SIZE):
+                        if not chunk:
+                            continue
+                        bytes_downloaded += len(chunk)
+                        if bytes_downloaded > MAX_DOWNLOAD_BYTES:
+                            errors.append(f"{content_url} -> file exceeded max size")
+                            logger.debug(f"{material_url}: skipping {content_url} - exceeded max size")
+                            os.remove(dest)
+                            break
+                        f.write(chunk)
+                
+                # Verify we got the full file
+                if os.path.exists(dest) and bytes_downloaded > 0:
+                    downloaded_files.append({
+                        "local_path": dest,
+                        "bytes": bytes_downloaded,
+                        "content_url": content_url,
+                        "encoding_format": encoding_format,
+                        "link_role": m.get("jawafdehi:linkRole"),
+                    })
+                else:
+                    errors.append(f"{content_url} -> empty or cancelled download")
+                    
             except Exception as e:
                 errors.append(f"{content_url} -> {e}")
                 logger.debug(f"{material_url}: media download failed: {content_url} -> {e}")
@@ -419,9 +469,14 @@ class JawafdehiDownloader(ScraperBase):
         with open(FOLDER_STATE_FILE, "w") as f:
             json.dump(state, f)
 
-    def upload_batch(self) -> bool:
-        """Upload BATCH_DIR to Hugging Face dataset repo."""
-        cmd = ["hf", "upload", self.repo_id, BATCH_DIR, self.path_in_repo, "--repo-type=dataset"]
+    def upload_batch(self, path_in_repo: str) -> bool:
+        """Upload BATCH_DIR to Hugging Face dataset repo.
+        
+        FIX: Accept path_in_repo parameter to support folder sharding.
+        Previously always uploaded to self.path_in_repo, causing mismatch between
+        manifest claims and actual HF paths.
+        """
+        cmd = ["hf", "upload", self.repo_id, BATCH_DIR, path_in_repo, "--repo-type=dataset"]
         logger.info(f"Running: {' '.join(cmd)}")
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
@@ -456,10 +511,15 @@ class JawafdehiDownloader(ScraperBase):
                 if line:
                     materials.append(json.loads(line))
 
+        # FIX: Enforce max_items limit AFTER resume filtering
+        if max_items:
+            materials = materials[:max_items]
+
         # Filter out already-processed items
         todo = [m for m in materials if self.manifest.get(m.get("id") or "", {}).get("status") != "uploaded"]
 
         logger.info(f"Total materials: {len(materials)}")
+        logger.info(f"Max items limit: {max_items}")
         logger.info(f"Already processed: {len(materials) - len(todo)}")
         logger.info(f"Remaining: {len(todo)}")
         logger.info(f"Batch size: {self.batch_size}")
@@ -514,8 +574,9 @@ class JawafdehiDownloader(ScraperBase):
                 folder_state["files_in_folder"] = 0
                 logger.info(f"  Rolling over to new folder: {folder_state['folder_num']:04d}")
 
+            # FIX: Use the calculated path_in_repo (with folder sharding) for upload
             path_in_repo = f"{self.path_in_repo}/{folder_state['folder_num']:04d}"
-            uploaded = self.upload_batch()
+            uploaded = self.upload_batch(path_in_repo)  # Pass path_in_repo to upload_batch
 
             if uploaded:
                 for r in ok:
@@ -538,7 +599,7 @@ class JawafdehiDownloader(ScraperBase):
 
 
 # ============================================================================
-# Raw Record Conversion
+# Raw Record Conversion - FIXED VERSIONS
 # ============================================================================
 
 def post_to_raw(post: GovtPost) -> RawRecord:
@@ -577,64 +638,167 @@ def load_materials_list(file_path: str = MATERIALS_LIST) -> List[Dict]:
     return materials
 
 
-def fetch_jawafdehi_records(
+def normalize_title_from_item(item: Dict) -> str:
+    """Normalize title from language mapping in item.
+    
+    FIX: Handles {'ne': '...', 'en': None} format from live API.
+    """
+    title = item.get("title", "")
+    if isinstance(title, dict):
+        # Prefer Nepali, fallback to English, then default
+        return title.get("ne") or title.get("en") or "Legal Document"
+    if not title or len(str(title)) < 5:
+        return "Legal Document"
+    if len(str(title)) > 200:
+        return str(title)[:197] + "..."
+    return str(title)
+
+
+def create_raw_records_from_materials(
     materials_file: str = MATERIALS_LIST,
     max_items: Optional[int] = None,
 ) -> List[RawRecord]:
-    """Fetch jawafdehi materials and return as RawRecord list."""
-    materials = load_materials_list(materials_file)
+    """Load JawafDehi materials and create RawRecords with proper PDF URLs.
+    
+    FIX: Each associatedMedia item becomes a separate RawRecord with:
+    - url = contentUrl (PDF URL for extraction pipeline)
+    - raw_meta contains all metadata including material_url, role, checksum
+    
+    FIX: Title parsing handles language mapping from live API.
+    FIX: Enforces max_items limit.
+    """
+    materials = []
+    if not os.path.exists(materials_file):
+        logger.warning(f"Materials file not found: {materials_file}")
+        return []
+    
+    with open(materials_file, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                materials.append(json.loads(line))
+    
+    # FIX: Enforce max_items limit
     if max_items:
         materials = materials[:max_items]
-
-    downloader = JawafdehiDownloader()
-    records: List[RawRecord] = []
-
+    
+    records = []
+    
     for item in materials:
         material_url = item.get("id") or item.get("url") or ""
         if not material_url.startswith("http"):
             material_url = f"{BASE_JAWAFDEHI}{material_url}"
-
-        type_prefix, record_id = downloader.parse_type_and_id(material_url)
+        
+        # Skip if this material was already processed (manifest-based)
+        manifest_file = "manifest.jsonl"
+        if os.path.exists(manifest_file):
+            with open(manifest_file, "r", encoding="utf-8") as mf:
+                for mline in mf:
+                    try:
+                        manifest_rec = json.loads(mline.strip())
+                        if manifest_rec.get("material_url") == material_url and manifest_rec.get("status") == "uploaded":
+                            logger.debug(f"Skipping already processed: {material_url}")
+                            break
+                    except:
+                        continue
+        
+        type_prefix, record_id = parse_type_and_id(material_url)
         if not type_prefix or not record_id:
             continue
-
+        
+        # Fetch detail to get associatedMedia
         detail_url = f"https://api.jawafdehi.org/api/materials/{type_prefix}/{record_id}"
+        
         try:
-            r = request_with_retries(requests.get, detail_url, headers=HEADERS, timeout=30)
-            if r.status_code != 200:
+            resp = request_with_retries(requests.get, detail_url, headers=HEADERS, timeout=30)
+            if resp.status_code != 200:
+                logger.warning(f"Detail API failed for {material_url}: {resp.status_code}")
                 continue
-            detail = r.json()
-        except Exception:
+            detail = resp.json()
+        except Exception as e:
+            logger.warning(f"Failed to fetch detail for {material_url}: {e}")
             continue
-
+        
         media_items = detail.get("associatedMedia") or []
         if not media_items:
+            logger.debug(f"No associatedMedia for {material_url}")
             continue
-
-        # Extract first media file as the main document
-        m = media_items[0]
-        content_url = m.get("contentUrl")
-        if not content_url:
-            continue
-
-        # Build GovtPost
-        title = item.get("title", "")
-        posts = GovtPost(
-            id=hashlib.md5(f"jawafdehi:{material_url}".encode()).hexdigest()[:12],
-            title=title[:200] if title else "Legal Document",
-            url=material_url,
-            source_id=f"jawafdehi_{type_prefix}",
-            source_name=f"Jawafdehi ({type_prefix.upper()})",
-            source_domain="jawafdehi.org",
-            category="legal",
-            language="ne",
-            has_attachment=True,
-            attachment_urls=[content_url],
-        )
-
-        records.append(post_to_raw(posts))
-
+        
+        # Create one RawRecord per associatedMedia item
+        for idx, m in enumerate(media_items):
+            content_url = m.get("contentUrl")
+            if not content_url:
+                continue
+            
+            encoding_format = m.get("encodingFormat", "")
+            link_role = m.get("jawafdehi:linkRole")
+            checksum = m.get("checksum")
+            
+            # Sanitize filename for source_id
+            def safe_name(s: str) -> str:
+                return re.sub(r"[^\w\-.]", "_", str(s))
+            
+            # Build source_id from type_prefix and record_id
+            source_id = f"jawafdehi_{type_prefix}"
+            
+            # FIX: Use contentUrl as the main URL (for PDF extraction pipeline)
+            # material_url is stored in raw_meta for reference
+            title = normalize_title_from_item(item)
+            
+            # Determine language from title
+            lang = "ne" if title and any('\u0900' <= c <= '\u097f' for c in title) else "en"
+            
+            # Create RawRecord with PDF URL as primary URL
+            post = RawRecord(
+                source_id=source_id,
+                source_name=f"Jawafdehi ({type_prefix.upper()})",
+                url=content_url,  # FIX: PDF URL for extraction
+                title=title,
+                language=lang,
+                published_at=item.get("date") or None,
+                date_bs=None,
+                category="legal",
+                content_type=identify_content_type(content_url),
+                fetched_at=None,
+                raw_meta={
+                    "material_url": material_url,  # Original HTML page URL
+                    "media_index": idx,
+                    "media_role": link_role,
+                    "encoding_format": encoding_format,
+                    "checksum": checksum,
+                    "jawafdehi_id": f"{type_prefix}/{record_id}",
+                    "item_title": title,
+                    "item_date": item.get("date"),
+                },
+            )
+            records.append(post)
+    
+    logger.info(f"Created {len(records)} RawRecords from {len(materials)} materials")
     return records
+
+
+def parse_type_and_id(material_url: str) -> tuple:
+    """Extract source_type and record_id from material URL."""
+    path = urlparse(material_url).path
+    parts = [p for p in path.split("/") if p]
+    if len(parts) >= 3 and parts[0] == "material":
+        return parts[1], parts[2]
+    return None, None
+
+
+# Deprecated: Kept for backward compatibility but now uses fixed version
+def fetch_jawafdehi_records(
+    materials_file: str = MATERIALS_LIST,
+    max_items: Optional[int] = None,
+) -> List[RawRecord]:
+    """Fetch jawafdehi materials and return as RawRecord list.
+    
+    FIX: Now uses create_raw_records_from_materials which has all the fixes.
+    """
+    return create_raw_records_from_materials(
+        materials_file=materials_file,
+        max_items=max_items,
+    )
 
 
 # ============================================================================
@@ -651,6 +815,8 @@ def main():
     parser.add_argument("--batch-size", type=int, default=BATCH_SIZE, help="Batch size for download")
     parser.add_argument("--repo-id", default="himalaya-ai/jawafdehi_legal", help="Hugging Face repo ID")
     parser.add_argument("--path-in-repo", default="pdfs", help="Path in HF repo")
+    parser.add_argument("--download-workers", type=int, default=DOWNLOAD_WORKERS,
+                        help="Number of download workers (reduced from 128 to prevent memory issues)")
     args = parser.parse_args()
 
     if args.all or (not args.crawl and not args.download):
@@ -666,8 +832,9 @@ def main():
             repo_id=args.repo_id,
             path_in_repo=args.path_in_repo,
             batch_size=args.batch_size,
+            download_workers=args.download_workers,
         )
-        downloader.download_and_upload(materials_file=args.materials_file)
+        downloader.download_and_upload(materials_file=args.materials_file, max_items=args.max_items)
 
     elif args.crawl:
         crawler = JawafdehiCrawler()
@@ -678,8 +845,9 @@ def main():
             repo_id=args.repo_id,
             path_in_repo=args.path_in_repo,
             batch_size=args.batch_size,
+            download_workers=args.download_workers,
         )
-        downloader.download_and_upload(materials_file=args.materials_file)
+        downloader.download_and_upload(materials_file=args.materials_file, max_items=args.max_items)
 
 
 if __name__ == "__main__":

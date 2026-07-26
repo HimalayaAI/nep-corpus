@@ -24,6 +24,7 @@ from nepali_corpus.core.services.scrapers import (
     news_rss_scraper,
     regulatory_scraper,
     miner,
+    jawafdehi_scraper,
 )
 from nepali_corpus.core.services.scrapers.registry import load_registry
 from nepali_corpus.core.services.storage.env_storage import EnvStorageService
@@ -566,6 +567,19 @@ class ScrapeCoordinator:
                             category="Gov",
                             scraper_class="regulatory",
                             func=lambda e=rentry: RegulatoryScraper(e).scrape(pages=max_pages or 1)
+                        )
+                    )
+                elif cfg.scraper_class == "jawafdehi":
+                    # JawafDehi API scraper
+                    jobs.append(
+                        ScrapeJob(
+                            name=f"jawafdehi:{cfg.id}",
+                            category="Gov",
+                            scraper_class="jawafdehi",
+                            func=lambda c=cfg: jawafdehi_scraper.create_raw_records_from_materials(
+                                materials_file="materials_list.jsonl",
+                                max_items=max_items
+                            )
                         )
                     )
                 else:
