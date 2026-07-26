@@ -113,28 +113,6 @@ def request_with_retries(method, url, **kwargs):
     raise last_exc
 
 
-def normalize_title(item: Dict) -> str:
-    """Normalize title from language mapping or plain string.
-    
-    Live API returns titles like {'ne': '...', 'en': None}.
-    We prefer 'ne', fallback to 'en', then use default.
-    """
-    title = item.get("title", "")
-    if isinstance(title, dict):
-        # Prefer Nepali, fallback to English, then default
-        normalized = title.get("ne") or title.get("en")
-        if normalized:
-            title = normalized
-        else:
-            return "Legal Document"
-    if not title or len(str(title)) < 5:
-        return "Legal Document"
-    # Truncate long titles
-    if len(str(title)) > 200:
-        return str(title)[:197] + "..."
-    return str(title)
-
-
 # ============================================================================
 # Step A: Crawl materials list via cursor pagination
 # ============================================================================
@@ -511,12 +489,10 @@ class JawafdehiDownloader(ScraperBase):
                 if line:
                     materials.append(json.loads(line))
 
-        # FIX: Enforce max_items limit AFTER resume filtering
-        if max_items:
-            materials = materials[:max_items]
-
         # Filter out already-processed items
         todo = [m for m in materials if self.manifest.get(m.get("id") or "", {}).get("status") != "uploaded"]
+        if max_items is not None:
+            todo = todo[:max(0, max_items)]
 
         logger.info(f"Total materials: {len(materials)}")
         logger.info(f"Max items limit: {max_items}")
@@ -678,9 +654,8 @@ def create_raw_records_from_materials(
             if line:
                 materials.append(json.loads(line))
     
-    # FIX: Enforce max_items limit
-    if max_items:
-        materials = materials[:max_items]
+    if max_items is not None:
+        materials = materials[:max(0, max_items)]
     
     records = []
     
@@ -688,19 +663,6 @@ def create_raw_records_from_materials(
         material_url = item.get("id") or item.get("url") or ""
         if not material_url.startswith("http"):
             material_url = f"{BASE_JAWAFDEHI}{material_url}"
-        
-        # Skip if this material was already processed (manifest-based)
-        manifest_file = "manifest.jsonl"
-        if os.path.exists(manifest_file):
-            with open(manifest_file, "r", encoding="utf-8") as mf:
-                for mline in mf:
-                    try:
-                        manifest_rec = json.loads(mline.strip())
-                        if manifest_rec.get("material_url") == material_url and manifest_rec.get("status") == "uploaded":
-                            logger.debug(f"Skipping already processed: {material_url}")
-                            break
-                    except:
-                        continue
         
         type_prefix, record_id = parse_type_and_id(material_url)
         if not type_prefix or not record_id:
@@ -732,11 +694,8 @@ def create_raw_records_from_materials(
             
             encoding_format = m.get("encodingFormat", "")
             link_role = m.get("jawafdehi:linkRole")
-            checksum = m.get("checksum")
-            
-            # Sanitize filename for source_id
-            def safe_name(s: str) -> str:
-                return re.sub(r"[^\w\-.]", "_", str(s))
+            provenance = m.get("jawafdehi:provenance") or {}
+            checksum = m.get("checksum") or provenance.get("sha256")
             
             # Build source_id from type_prefix and record_id
             source_id = f"jawafdehi_{type_prefix}"
@@ -744,6 +703,13 @@ def create_raw_records_from_materials(
             # FIX: Use contentUrl as the main URL (for PDF extraction pipeline)
             # material_url is stored in raw_meta for reference
             title = normalize_title_from_item(item)
+            item_extra = item.get("extra") or {}
+            published_at = (
+                detail.get("datePublished")
+                or item.get("date")
+                or item_extra.get("date")
+            )
+            date_bs = detail.get("jawafdehi:datePublishedBS")
             
             # Determine language from title
             lang = "ne" if title and any('\u0900' <= c <= '\u097f' for c in title) else "en"
@@ -755,8 +721,8 @@ def create_raw_records_from_materials(
                 url=content_url,  # FIX: PDF URL for extraction
                 title=title,
                 language=lang,
-                published_at=item.get("date") or None,
-                date_bs=None,
+                published_at=published_at,
+                date_bs=date_bs,
                 category="legal",
                 content_type=identify_content_type(content_url),
                 fetched_at=None,
@@ -766,9 +732,10 @@ def create_raw_records_from_materials(
                     "media_role": link_role,
                     "encoding_format": encoding_format,
                     "checksum": checksum,
+                    "provenance": provenance,
                     "jawafdehi_id": f"{type_prefix}/{record_id}",
                     "item_title": title,
-                    "item_date": item.get("date"),
+                    "item_date": published_at,
                 },
             )
             records.append(post)
