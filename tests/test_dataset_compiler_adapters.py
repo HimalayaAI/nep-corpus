@@ -275,6 +275,60 @@ def test_parse_sources_defaults_to_text_and_rejects_mixed_run() -> None:
         resolve_run_adapter(sources)
 
 
+def test_existing_repo_schema_validation_uses_target_repo_id(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class ValidationReached(RuntimeError):
+        pass
+
+    class FakeApi:
+        def repo_info(self, repo_id: str, repo_type: str):
+            assert repo_id == "example/target"
+            assert repo_type == "dataset"
+            return object()
+
+    def fake_validate(repo_id, adapter, token=None):
+        assert repo_id == "example/target"
+        assert adapter.name == "text"
+        assert token == "test-token"
+        raise ValidationReached
+
+    monkeypatch.setattr(compiler, "HfApi", FakeApi)
+    monkeypatch.setattr(
+        compiler,
+        "validate_existing_repo_schema",
+        fake_validate,
+    )
+
+    with pytest.raises(ValidationReached):
+        compiler.merge_and_upload(
+            sources=[
+                SourceConfig(
+                    name="existing-target-test",
+                    kind="jsonl",
+                    path=str(tmp_path / "unused.jsonl"),
+                    fields={"text": "text"},
+                )
+            ],
+            repo_id="example/target",
+            token="test-token",
+            batch_size=100,
+            incremental=True,
+            refresh_dedupe=False,
+            dedupe_store_path=str(tmp_path / "dedupe.sqlite"),
+            max_batches=None,
+            global_filter_spec=None,
+            legacy_filter_spec=None,
+            default_language="ne",
+            cleanup_cache=False,
+            checkpoint_path=None,
+            embed_media=False,
+            max_media_bytes=None,
+            max_batch_bytes=None,
+        )
+
+
 def test_checkpoint_is_written_only_after_upload(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

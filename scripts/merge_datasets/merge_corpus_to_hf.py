@@ -657,7 +657,7 @@ def merge_and_upload(
             "Full merge requested on an existing repo; this will append new shards and may duplicate data."
         )
     if repo_exists:
-        validate_existing_repo_schema(repo, adapter, token=token)
+        validate_existing_repo_schema(repo_id, adapter, token=token)
 
     store = DedupeStore(dedupe_store_path, reset=refresh_dedupe)
     try:
