@@ -186,6 +186,9 @@ For schema and onboarding details, see [docs/ONBOARDING_SOURCES.md](docs/ONBOARD
 For the benchmark-safe multilingual Nepali SFT compiler and Colab commands, see
 [docs/MULTILINGUAL_NEPALI_SFT.md](docs/MULTILINGUAL_NEPALI_SFT.md).
 
+Packaged Hugging Face, Kaggle, ASR, OCR, and SFT datasets use the separate
+[dataset compiler](docs/DATASET_COMPILER.md), not the URL scraper coordinator.
+
 ## License
 
 MIT
