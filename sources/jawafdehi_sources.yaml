@@ -1,0 +1,273 @@
+# Jawafdehi Legal Archive Sources
+# Source: https://jawafdehi.org
+# Hugging Face Dataset: https://huggingface.co/datasets/himalaya-ai/jawafdehi_legal
+#
+# Jawafdehi collects legal and government records from various Nepali institutions.
+# These are categorized by document type/source.
+
+# Legal records from Attorney General's Office (charge sheets, case filings)
+- id: jawafdehi_ag
+  name: Attorney General's Office (Jawafdehi)
+  name_ne: अटर्नी जनरलको कार्यालय
+  url: https://jawafdehi.org/material/ag
+  source_type: api
+  category: legal_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: Charge sheets, case filings, and legal documents from Attorney General's Office
+  priority: 1
+  meta:
+    source_type_code: ag
+    doc_types:
+      - charge_sheet
+      - case_filing
+      - legal_order
+
+# Legal records from Supreme Court
+- id: jawafdehi_sc
+  name: Supreme Court (Jawafdehi)
+  name_ne: उच्चतम अदालत
+  url: https://jawafdehi.org/material/sc
+  source_type: api
+  category: legal_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: Supreme Court judgments, orders, and legal documents
+  priority: 1
+  meta:
+    source_type_code: sc
+    doc_types:
+      - judgment
+      - order
+      - ruling
+
+# Legal records from High Courts
+- id: jawafdehi_hc
+  name: High Courts (Jawafdehi)
+  name_ne: उच्च अदालत
+  url: https://jawafdehi.org/material/hc
+  source_type: api
+  category: legal_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: High Court judgments and legal documents
+  priority: 2
+  meta:
+    source_type_code: hc
+    doc_types:
+      - judgment
+      - order
+
+# Legal records from District Courts
+- id: jawafdehi_dc
+  name: District Courts (Jawafdehi)
+  name_ne: जिल्ला अदालत
+  url: https://jawafdehi.org/material/dc
+  source_type: api
+  category: legal_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: District Court judgments, orders, and case records
+  priority: 2
+  meta:
+    source_type_code: dc
+    doc_types:
+      - judgment
+      - order
+      - case_record
+
+# Legal records from Special Courts
+- id: jawafdehi_sp
+  name: Special Courts (Jawafdehi)
+  name_ne: विशेष अदालत
+  url: https://jawafdehi.org/material/sp
+  source_type: api
+  category: legal_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: Specialized court judgments (anti-corruption, financial, etc.)
+  priority: 2
+  meta:
+    source_type_code: sp
+    doc_types:
+      - judgment
+      - order
+
+# Government circulars and notifications
+- id: jawafdehi_circular
+  name: Government Circulars (Jawafdehi)
+  name_ne: सरकारी सम्बन्धी वृत्तान्त
+  url: https://jawafdehi.org/material/circular
+  source_type: api
+  category: government_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: Government circulars, notifications, and official communications
+  priority: 3
+  meta:
+    source_type_code: circular
+    doc_types:
+      - circular
+      - notification
+      - gazette
+
+# Legislation and acts
+- id: jawafdehi_legislation
+  name: Legislation (Jawafdehi)
+  name_ne: कानून तथा ऐन
+  url: https://jawafdehi.org/material/legislation
+  source_type: api
+  category: legal_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: Acts, regulations, and legislation documents
+  priority: 1
+  meta:
+    source_type_code: legislation
+    doc_types:
+      - act
+      - regulation
+      - bylaw
+
+# Press releases and news from government institutions
+- id: jawafdehi_press
+  name: Government Press Releases (Jawafdehi)
+  name_ne: सरकारी प्रेस वार्ता
+  url: https://jawafdehi.org/material/press
+  source_type: api
+  category: news_media
+  scraper_class: jawafdehi
+  language: mixed
+  description: Press releases and news from government offices and institutions
+  priority: 3
+  meta:
+    source_type_code: press
+    doc_types:
+      - press_release
+      - news_item
+
+# Reports and studies
+- id: jawafdehi_reports
+  name: Government Reports (Jawafdehi)
+  name_ne: सरकारी रिपोर्ट
+  url: https://jawafdehi.org/material/report
+  source_type: api
+  category: government_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: Government reports, studies, and publications
+  priority: 3
+  meta:
+    source_type_code: report
+    doc_types:
+      - report
+      - study
+      - publication
+
+# Public notices and announcements
+- id: jawafdehi_notice
+  name: Public Notices (Jawafdehi)
+  name_ne: सार्वजनिक सूचना
+  url: https://jawafdehi.org/material/notice
+  source_type: api
+  category: government_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: Public notices, auctions, tenders, and announcements
+  priority: 2
+  meta:
+    source_type_code: notice
+    doc_types:
+      - notice
+      - auction
+      - tender
+
+# Election-related documents
+- id: jawafdehi_election
+  name: Election Documents (Jawafdehi)
+  name_ne: निर्वाचन सम्बन्धी कागजात
+  url: https://jawafdehi.org/material/election
+  source_type: api
+  category: government_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: Election-related documents, candidate filings, and results
+  priority: 3
+  meta:
+    source_type_code: election
+    doc_types:
+      - candidate_filing
+      - election_results
+      - polling_report
+
+# Company and business registration records
+- id: jawafdehi_company
+  name: Company Records (Jawafdehi)
+  name_ne: कम्पनी रेकर्ड
+  url: https://jawafdehi.org/material/company
+  source_type: api
+  category: legal_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: Company registration and business records
+  priority: 3
+  meta:
+    source_type_code: company
+    doc_types:
+      - registration
+      - incorporation
+      - compliance
+
+# International agreements and treaties
+- id: jawafdehi_treaty
+  name: International Agreements (Jawafdehi)
+  name_ne: अन्तर्राष्ट्रिय सम्झौता
+  url: https://jawafdehi.org/material/treaty
+  source_type: api
+  category: legal_docs
+  scraper_class: jawafdehi
+  language: mixed
+  description: International treaties, agreements, and conventions
+  priority: 3
+  meta:
+    source_type_code: treaty
+    doc_types:
+      - treaty
+      - agreement
+      - convention
+
+# Police and law enforcement records
+- id: jawafdehi_police
+  name: Police Records (Jawafdehi)
+  name_ne: प्रहरी रेकर्ड
+  url: https://jawafdehi.org/material/police
+  source_type: api
+  category: legal_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: Police reports, FIRs, and law enforcement records
+  priority: 2
+  meta:
+    source_type_code: police
+    doc_types:
+      - fir
+      - police_report
+      - investigation_record
+
+# Judicial administration records
+- id: jawafdehi_judicial
+  name: Judicial Administration (Jawafdehi)
+  name_ne: न्यायिक प्रशासन
+  url: https://jawafdehi.org/material/judicial
+  source_type: api
+  category: government_docs
+  scraper_class: jawafdehi
+  language: ne
+  description: Judicial administration and court management records
+  priority: 3
+  meta:
+    source_type_code: judicial
+    doc_types:
+      - administrative_order
+      - court_policy
+      - procedural_guideline

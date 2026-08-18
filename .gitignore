@@ -26,6 +26,13 @@ now
 .dashboard.pid
 dashboard.log
 
+# JawafDehi scraper runtime state
+/folder_state.json
+/manifest.jsonl
+/materials_cursor.txt
+/materials_list.jsonl
+/pdf_batch/
+
 # Distribution / packaging
 .Python
 build/

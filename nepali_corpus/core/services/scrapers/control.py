@@ -598,6 +598,21 @@ class ScrapeCoordinator:
                             func=lambda e=rentry: RegulatoryScraper(e).scrape(pages=max_pages or 1)
                         )
                     )
+                elif cfg.scraper_class == "jawafdehi":
+                    # JawafDehi API scraper
+                    from nepali_corpus.core.services.scrapers import jawafdehi_scraper
+
+                    jobs.append(
+                        ScrapeJob(
+                            name=f"jawafdehi:{cfg.id}",
+                            category="Gov",
+                            scraper_class="jawafdehi",
+                            func=lambda limit=max_pages: jawafdehi_scraper.create_raw_records_from_materials(
+                                materials_file="materials_list.jsonl",
+                                max_items=limit,
+                            )
+                        )
+                    )
                 else:
                     # Fallback for constitutional, parliament, etc.
                     from nepali_corpus.core.services.scrapers.regulatory_scraper import RegulatoryScraper

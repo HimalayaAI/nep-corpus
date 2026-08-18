@@ -6,11 +6,12 @@ Primary use case: building high-quality corpora for LLM pretraining and SFT.
 
 ## What This Repo Does
 
-- Scrapes from news, government, and social source registries.
+- Scrapes from news, government, legal, and social source registries.
 - Extracts and cleans article text (including difficult HTML/PDF cases).
 - Applies filtering and deduplication.
 - Writes raw and processed outputs and syncs to PostgreSQL.
 - Exposes a dashboard for run monitoring.
+- Includes jawafdehi scraper for collecting legal/government records from jawafdehi.org (Hugging Face dataset: [himalaya-ai/jawafdehi_legal](https://huggingface.co/datasets/himalaya-ai/jawafdehi_legal)).
 
 ## Bug Fixes
 
@@ -26,6 +27,35 @@ The pipeline is registry-driven via the [sources](sources) directory.
 | `govt_sources_registry.yaml` | Government | 90+ |
 | `news_rss_registry.yaml` | Priority RSS | 50+ |
 | `social_sources.yaml` | Social sources/queries | 120+ |
+| `jawafdehi_sources.yaml` | Legal/Government (Jawafdehi) | 15+ |
+
+## Jawafdehi Legal Archive
+
+The jawafdehi scraper extracts legal and government records from the [Jawafdehi archive](https://jawafdehi.org), which collects charge sheets, case filings, legislation, and other public-interest government records for accountability and research.
+
+### Dataset
+
+The scraped data is stored on Hugging Face: **[himalaya-ai/jawafdehi_legal](https://huggingface.co/datasets/himalaya-ai/jawafdehi_legal)**
+
+### Usage
+
+```bash
+# Crawl materials list (Step A)
+python -m nepali_corpus.core.services.scrapers.jawafdehi_scraper --crawl
+
+# Download and upload files (Step B)
+python -m nepali_corpus.core.services.scrapers.jawafdehi_scraper --download
+
+# Full pipeline (crawl + download)
+python -m nepali_corpus.core.services.scrapers.jawafdehi_scraper --all
+```
+
+### Requirements
+
+```bash
+pip install huggingface_hub
+hf auth login  # for uploading to Hugging Face dataset repo
+```
 
 ## Project Layout
 
