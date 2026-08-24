@@ -284,6 +284,7 @@ def cmd_coordinator(args: argparse.Namespace) -> None:
             municipality_enabled=args.municipality,
             municipality_max_items=args.municipality_max_items,
             municipality_since_months=args.municipality_since_months,
+            js_mode=getattr(args, "js_mode", False),
         )
 
         # Signal handling for graceful shutdown
@@ -683,6 +684,17 @@ def build_parser() -> argparse.ArgumentParser:
                          help="Enable image OCR (slow, default: False)")
     p_coord.add_argument("--pdf", action="store_true", default=False,
                          help="Enable embedded PDF extraction (default: False)")
+    p_coord.add_argument(
+        "--js-mode",
+        action="store_true",
+        default=False,
+        dest="js_mode",
+        help=(
+            "Use Scrapling's DynamicFetcher (Playwright) for JS-heavy sources during "
+            "URL discovery. Requires Scrapling to be installed: "
+            "pip install scrapling && scrapling install (default: False)"
+        ),
+    )
     p_coord.set_defaults(func=cmd_coordinator)
 
     # --- Rerun-failed subcommand ---

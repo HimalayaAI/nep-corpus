@@ -130,6 +130,7 @@ class ScrapeCoordinator:
         municipality_enabled: bool = True,
         municipality_max_items: Optional[int] = None,
         municipality_since_months: Optional[int] = None,
+        js_mode: bool = False,
     ) -> None:
         self._storage = storage
         self.state = ScrapeState()
@@ -142,6 +143,7 @@ class ScrapeCoordinator:
         self._municipality_enabled = municipality_enabled
         self._municipality_max_items = municipality_max_items
         self._municipality_since_months = municipality_since_months
+        self._js_mode = js_mode
 
         # Run tracking state
         self._run_id: Optional[str] = None
@@ -620,7 +622,7 @@ class ScrapeCoordinator:
             for cfg in gov_sources:
                 if cfg.is_discovery:
                     # Discovery Miner Job
-                    miner_obj = miner.DiscoveryMiner(cfg.url)
+                    miner_obj = miner.DiscoveryMiner(cfg.url, js_mode=self._js_mode)
                     jobs.append(
                         ScrapeJob(
                             name=f"discovery:{cfg.id}",
@@ -665,7 +667,9 @@ class ScrapeCoordinator:
                             category="News",
                             scraper_class="miner",
                             is_discovery=True,
-                            func=lambda c=cfg: miner.DiscoveryMiner(c.url).discover_all(max_pages=max_pages or 100)
+                            func=lambda c=cfg: miner.DiscoveryMiner(
+                                c.url, js_mode=self._js_mode
+                            ).discover_all(max_pages=max_pages or 100)
                         )
                     )
                 else:

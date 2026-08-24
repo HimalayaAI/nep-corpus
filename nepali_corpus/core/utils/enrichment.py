@@ -16,6 +16,7 @@ from bs4 import BeautifulSoup
 
 from nepali_corpus.core.services.scrapers.pdf.utils import HAS_PYMUPDF, _extract_text_from_pdf
 from nepali_corpus.core.utils.content_types import identify_content_type
+from nepali_corpus.core.utils.scrapling_fetcher import HAS_SCRAPLING, is_likely_blocked, stealth_fetch
 from .normalize import devanagari_ratio
 from .boilerplate import clean_extracted_text
 
@@ -93,7 +94,12 @@ def _cache_path(cache_dir: str, url: str, ext: str = ".html") -> str:
     return os.path.join(cache_dir, f"{h}{ext}")
 
 def fetch_content(url: str, cache_dir: str, timeout: int = 30, delay: float = 0.5) -> Tuple[Optional[bytes], str]:
-    """Fetches url content and returns (bytes, content_type). Downloads PDFs and HTML."""
+    """Fetches url content and returns (bytes, content_type). Downloads PDFs and HTML.
+
+    Falls back to Scrapling's StealthFetcher when the plain requests response
+    looks bot-blocked (non-200, very short body, or Cloudflare challenge page).
+    The fallback is a no-op when Scrapling is not installed.
+    """
     os.makedirs(cache_dir, exist_ok=True)
 
     # Check cache first for html or pdf
@@ -110,6 +116,9 @@ def fetch_content(url: str, cache_dir: str, timeout: int = 30, delay: float = 0.
     # Unquote URL to avoid double-encoding by requests
     fetch_url = unquote(url)
 
+    data: Optional[bytes] = None
+    c_type: str = "text/html"
+
     try:
         r = requests.get(
             fetch_url,
@@ -118,34 +127,51 @@ def fetch_content(url: str, cache_dir: str, timeout: int = 30, delay: float = 0.
             stream=True,
             verify=True,
         )
-        if r.status_code != 200:
-            logger.warning(f"Failed to fetch {url}: HTTP {r.status_code}")
-            return None, ""
 
+        plain_ok = r.status_code == 200
         content_type = r.headers.get("Content-Type", "").lower()
         MAX_SIZE = 50 * 1024 * 1024  # 50MB limit for all downloads
-        
-        chunks = []
-        bytes_read = 0
-        for chunk in r.iter_content(chunk_size=8192):
-            bytes_read += len(chunk)
-            if bytes_read > MAX_SIZE:
-                logger.warning(f"Response too large, truncating: {url}")
-                break
-            chunks.append(chunk)
-            
-        data = b"".join(chunks)
+
+        if plain_ok:
+            chunks = []
+            bytes_read = 0
+            for chunk in r.iter_content(chunk_size=8192):
+                bytes_read += len(chunk)
+                if bytes_read > MAX_SIZE:
+                    logger.warning(f"Response too large, truncating: {url}")
+                    break
+                chunks.append(chunk)
+            data = b"".join(chunks)
 
         if "application/pdf" in content_type:
             c_type = "application/pdf"
-            path = pdf_path
         else:
             c_type = "text/html"
-            path = html_path
 
+        # Stealth fallback: retry with StealthFetcher if plain request is blocked
+        if c_type == "text/html" and (not plain_ok or is_likely_blocked(data)):
+            if HAS_SCRAPLING:
+                logger.info("Plain fetch blocked/empty for %s — retrying with StealthFetcher", url)
+                stealth_data = stealth_fetch(url, timeout=timeout)
+                if stealth_data and not is_likely_blocked(stealth_data):
+                    data = stealth_data
+                    logger.info("StealthFetcher succeeded: %d bytes from %s", len(data), url)
+                else:
+                    logger.warning("StealthFetcher also failed/blocked for %s", url)
+            else:
+                if not plain_ok:
+                    logger.warning(f"Failed to fetch {url}: HTTP {r.status_code}")
+                return None, ""
+
+        if data is None:
+            return None, ""
+
+        # Write to cache
+        path = pdf_path if c_type == "application/pdf" else html_path
         with open(path, "wb") as f:
             f.write(data)
         return data, c_type
+
     except Exception as e:
         logger.warning(f"Failed to fetch {url}: {e}")
         return None, ""
@@ -225,8 +251,9 @@ def extract_text(
         except Exception:
             pass
 
-    # Default: Treat as HTML
-    # Use smart encoding detection
+    # Default: treat as HTML
+    # Parse HTML exactly ONCE and reuse across all candidate extractors.
+
     encoding = _detect_encoding(data)
     try:
         html = data.decode(encoding)
@@ -236,188 +263,148 @@ def extract_text(
         except UnicodeDecodeError:
             html = data.decode("utf-8", errors="ignore")
 
-    extracted_text = ""
+    # Build a single pre-sanitised soup for CSS-selector extraction
+    try:
+        shared_soup = (
+            BeautifulSoup(html, "lxml")
+            if "lxml" in sys.modules
+            else BeautifulSoup(html, "html.parser")
+        )
+    except Exception:
+        shared_soup = BeautifulSoup(html, "html.parser")
 
-    # Fallback to trafilatura
+    # Apply global noise removal once on the shared soup
+    for selector in GLOBAL_NOISE_SELECTORS:
+        for noise in shared_soup.select(selector):
+            noise.decompose()
+    for tag in shared_soup(BOILERPLATE_TAGS):
+        tag.extract()
+    for selection in shared_soup.select(", ".join(BOILERPLATE_SELECTORS)):
+        selection.extract()
+    for a in shared_soup.find_all("a"):
+        a_text = a.get_text(strip=True).lower()
+        if any(k in a_text for k in ["download", "view more", "read more", "डाउनलोड", "थप पढ्नुहोस्"]):
+            a.decompose()
+
+    # Serialise the cleaned soup back to a string for trafilatura / readability
+    # (they need an HTML string, not a soup object)
+    cleaned_html = str(shared_soup)
+
+    # Candidate 1: Trafilatura
     trafilatura_text: Optional[str] = None
     if use_trafilatura:
         try:
             import trafilatura
-            # silence trafilatura logs
             logging.getLogger("trafilatura").setLevel(logging.ERROR)
             trafilatura_text = trafilatura.extract(
-                html, url=url, include_comments=False, include_tables=False
-            )
-            extracted_text = trafilatura_text or ""
-        except Exception:
-            pass
-
-    # Strategy 2: readability-lxml (good article extractor)
-    if not extracted_text:
-        try:
-            from readability import Document
-            doc = Document(html)
-            summary_html = doc.summary()
-            summary_soup = BeautifulSoup(summary_html, "html.parser")
-            candidate = summary_soup.get_text("\n").strip()
-            if len(candidate) > 100:
-                extracted_text = candidate
-        except ImportError:
-            pass
-        except Exception:
-            pass
-
-    # Strategy 3: CSS selector targeting (expanded for Nepali themes)
-    if not extracted_text:
-        try:
-            soup = (
-                BeautifulSoup(html, "lxml")
-                if "lxml" in sys.modules
-                else BeautifulSoup(html, "html.parser")
+                cleaned_html, url=url, include_comments=False, include_tables=False
             )
         except Exception:
-            soup = BeautifulSoup(html, "html.parser")
-
-        # Remove boilerplate tags
-        for tag in soup(BOILERPLATE_TAGS):
-            tag.extract()
-
-        # Remove boilerplate selectors
-        for selection in soup.select(", ".join(BOILERPLATE_SELECTORS)):
-            selection.extract()
-
-        # Target and remove "Action" links
-        for a in soup.find_all("a"):
-            a_text = a.get_text(strip=True).lower()
-            action_keywords = [
-                "download", "view more", "read more",
-                "डाउनलोड", "थप पढ्नुहोस्",
-            ]
-            if any(k in a_text for k in action_keywords):
-                a.decompose()
-
-        # Try content selectors (expanded list)
-        content_node = None
-        for selector in CONTENT_SELECTORS:
-            found = soup.select_one(selector)
-            if found and len(found.get_text()) > 200:
-                content_node = found
-                break
-
-        if content_node:
-            extracted_text = content_node.get_text("\n")
-        else:
-            # Look for high text-density blocks with Devanagari content
-            blocks = []
-            for tag in soup.find_all(["div", "section", "article"]):
-                if not tag.find_parent(["div", "section", "article"]):
-                    text = tag.get_text(strip=True)
-                    if len(text) > 100 and devanagari_ratio(text) > 0.4:
-                        blocks.append(tag.get_text("\n"))
-            extracted_text = "\n".join(blocks) if blocks else ""
-
-    # Strategy 4: Last-resort paragraph extraction
-    if not extracted_text or len(extracted_text.strip()) < 100:
-        try:
-            soup = BeautifulSoup(html, "html.parser")
-            paragraphs = []
-            for p in soup.find_all("p"):
-                p_text = p.get_text(strip=True)
-                # Only keep paragraphs with meaningful Devanagari content
-                if len(p_text) > 30 and devanagari_ratio(p_text) > 0.3:
-                    paragraphs.append(p_text)
-            if paragraphs and len("\n".join(paragraphs)) > len(extracted_text or ""):
-                extracted_text = "\n".join(paragraphs)
-        except Exception:
             pass
 
-    # We clean the text now to see if we actually have content or just boilerplate
+    # Candidate 2: readability-lxml
+    readability_text: Optional[str] = None
+    try:
+        from readability import Document
+        doc = Document(cleaned_html)
+        r_html = doc.summary()
+        r_soup = BeautifulSoup(r_html, "html.parser")
+        candidate = r_soup.get_text("\n").strip()
+        if len(candidate) > 100:
+            readability_text = candidate
+    except ImportError:
+        pass
+    except Exception:
+        pass
+
+    # Candidate 3: CSS selector targeting (reuse shared_soup)
+    css_text: Optional[str] = None
+    content_node = None
+    for selector in CONTENT_SELECTORS:
+        found = shared_soup.select_one(selector)
+        if found and len(found.get_text()) > 200:
+            content_node = found
+            break
+
+    if content_node:
+        css_text = content_node.get_text("\n")
+    else:
+        # High text-density blocks with Devanagari content
+        blocks = []
+        for tag in shared_soup.find_all(["div", "section", "article"]):
+            if not tag.find_parent(["div", "section", "article"]):
+                text = tag.get_text(strip=True)
+                if len(text) > 100 and devanagari_ratio(text) > 0.4:
+                    blocks.append(tag.get_text("\n"))
+        if blocks:
+            css_text = "\n".join(blocks)
+
+    # Candidate 4: Last-resort paragraph extraction
+    paragraph_text: Optional[str] = None
+    paragraphs = []
+    for p in shared_soup.find_all("p"):
+        p_text = p.get_text(strip=True)
+        if len(p_text) > 30 and devanagari_ratio(p_text) > 0.3:
+            paragraphs.append(p_text)
+    if paragraphs:
+        paragraph_text = "\n".join(paragraphs)
+
+    # Voting: score all candidates, pick best
+    candidates = [
+        ("trafilatura", trafilatura_text),
+        ("readability", readability_text),
+        ("css_selectors", css_text),
+        ("paragraphs", paragraph_text),
+    ]
+
+    best_score = -1.0
+    extracted_text = ""
+
+    for name, text in candidates:
+        if not text:
+            continue
+        cleaned = clean_extracted_text(text)
+        if not cleaned:
+            continue
+        dv_ratio = devanagari_ratio(cleaned)
+        # Score = log(length) * (1 + Devanagari ratio)
+        score = math.log(len(cleaned) + 1) * (1.0 + dv_ratio)
+        if score > best_score:
+            best_score = score
+            extracted_text = text
+            logger.debug("Extractor %s winning with score %.2f (dv: %.2f)", name, score, dv_ratio)
+
     cleaned_so_far = clean_extracted_text(extracted_text)
-    
-    # Strategy 5: Image OCR (for scanned press releases)
-    # Only try OCR if text is very short OR has almost no Devanagari
+
+    # Strategy 5: Image OCR (scanned press releases)
     if ocr_enabled and url and (
-        not cleaned_so_far or 
-        (len(cleaned_so_far.strip()) < 600 and devanagari_ratio(cleaned_so_far) < 0.2)
+        not cleaned_so_far
+        or (len(cleaned_so_far.strip()) < 600 and devanagari_ratio(cleaned_so_far) < 0.2)
     ):
-        logger.info(f"Attempting image OCR for {url} (len: {len(cleaned_so_far.strip())}, dv: {devanagari_ratio(cleaned_so_far):.2f})")
+        logger.info(
+            "Attempting image OCR for %s (len: %d, dv: %.2f)",
+            url, len(cleaned_so_far.strip()), devanagari_ratio(cleaned_so_far),
+        )
         ocr_text = _try_ocr_images(html, url)
         if ocr_text and len(ocr_text.strip()) > len(cleaned_so_far.strip()):
-            logger.info(f"OCR successful: {len(ocr_text)} chars extracted")
+            logger.info("OCR successful: %d chars extracted", len(ocr_text))
             extracted_text = ocr_text
             cleaned_so_far = clean_extracted_text(extracted_text)
 
     # Strategy 6: Embedded PDF extraction
     if pdf_enabled and url and (
-        not cleaned_so_far or 
-        (len(cleaned_so_far.strip()) < 600 and devanagari_ratio(cleaned_so_far) < 0.2)
+        not cleaned_so_far
+        or (len(cleaned_so_far.strip()) < 600 and devanagari_ratio(cleaned_so_far) < 0.2)
     ):
-        logger.info(f"Attempting embedded PDF extraction for {url}")
+        logger.info("Attempting embedded PDF extraction for %s", url)
         pdf_text = _try_embedded_pdfs(html, url)
         if pdf_text and len(pdf_text.strip()) > len(cleaned_so_far.strip()):
-            logger.info(f"PDF extraction successful: {len(pdf_text)} chars extracted")
+            logger.info("PDF extraction successful: %d chars extracted", len(pdf_text))
             extracted_text = pdf_text
-            cleaned_so_far = clean_extracted_text(extracted_text)
-
-    # Combine results from different extractors and choose the one with the best "quality score"
-    candidates = []
-    
-    # Candidate 1: Trafilatura (reuse result from Strategy 1 — no double parse)
-    if use_trafilatura and trafilatura_text:
-        candidates.append(("trafilatura", trafilatura_text))
-
-    # Candidate 2: Readability
-    try:
-        from readability import Document
-        doc = Document(html)
-        r_text = BeautifulSoup(doc.summary(), "html.parser").get_text("\n")
-        if r_text: candidates.append(("readability", r_text))
-    except Exception: pass
-
-    # Candidate 3: BS4 with expanded selectors (after sanitization)
-    try:
-        soup = BeautifulSoup(html, "lxml") if "lxml" in sys.modules else BeautifulSoup(html, "html.parser")
-        # Global Sanitization: Aggressively strip noise before extraction
-        for selector in GLOBAL_NOISE_SELECTORS:
-            for noise in soup.select(selector):
-                noise.decompose()
-        
-        # Try our best CSS selector
-        best_css = ""
-        for selector in CONTENT_SELECTORS:
-            node = soup.select_one(selector)
-            if node:
-                txt = node.get_text("\n").strip()
-                if len(txt) > len(best_css):
-                    best_css = txt
-        if best_css: candidates.append(("css_selectors", best_css))
-    except Exception: pass
-
-    # Voting Logic: Score candidates by (Length * DevanagariDensity)
-    best_score = -1.0
-    winner_text = extracted_text # Default to what we had
-
-    for name, text in candidates:
-        cleaned = clean_extracted_text(text)
-        if not cleaned: continue
-        
-        # Scoring: heavily favor Devanagari, but don't ignore valid English news
-        dv_ratio = devanagari_ratio(cleaned)
-        # Score = Log(Length) * (1 + DevanagariDensity)
-        # We use log to avoid very long boilerplate outvoting shorter high-quality text
-        score = math.log(len(cleaned) + 1) * (1.0 + dv_ratio)
-        
-        if score > best_score:
-            best_score = score
-            winner_text = text
-            logger.debug(f"Extractor {name} winning with score {score:.2f} (dv: {dv_ratio:.2f})")
-
-    extracted_text = winner_text
 
     if not extracted_text:
         return ""
 
-    # Final post-processing
     return clean_extracted_text(extracted_text).strip()
 
 def _try_ocr_images(html: str, base_url: str) -> str:

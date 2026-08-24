@@ -391,6 +391,7 @@
   poll_interval_mins: 60
   meta:
     group: regulatory_bodies
+    js_required: true
 - id: sebon
   name: Securities Board of Nepal
   url: https://sebon.gov.np
@@ -413,6 +414,7 @@
   poll_interval_mins: 120
   meta:
     group: regulatory_bodies
+    js_required: true
 - id: nerc
   name: Nepal Electricity Regulatory Commission
   url: https://nerc.gov.np
@@ -435,6 +437,7 @@
   poll_interval_mins: 120
   meta:
     group: regulatory_bodies
+    js_required: true
 - id: supremecourt
   name: Supreme Court of Nepal
   url: https://supremecourt.gov.np
@@ -446,6 +449,7 @@
   poll_interval_mins: 120
   meta:
     group: judiciary
+    js_required: true
 - id: jc
   name: Judicial Council
   url: https://jc.gov.np
@@ -835,6 +839,7 @@
   poll_interval_mins: 120
   meta:
     group: autonomous_bodies
+    js_required: true
 - id: nea
   name: Nepal Electricity Authority
   url: https://nea.org.np
@@ -846,6 +851,7 @@
   poll_interval_mins: 120
   meta:
     group: autonomous_bodies
+    js_required: true
 - id: nra
   name: National Reconstruction Authority
   url: https://nra.gov.np

@@ -9,6 +9,7 @@ from urllib.parse import urljoin, urlparse, parse_qsl, urlencode, urlunparse
 import xml.etree.ElementTree as ET
 
 from .scraper_base import ScraperBase
+from nepali_corpus.core.utils.scrapling_fetcher import HAS_SCRAPLING, dynamic_fetch
 
 logger = logging.getLogger("nepali_corpus.scrapers.miner")
 
@@ -18,10 +19,36 @@ class DiscoveryMiner(ScraperBase):
     Exhaustive URL discovery tool for websites without predefined patterns.
     Uses sitemaps, internal link crawling, pagination, archives, navigation
     sections, and auto-feed discovery to maximize article URL coverage.
+
+    Parameters
+    ----------
+    base_url:
+        Root URL of the site to mine.
+    delay:
+        Per-request delay in seconds (respects robots.txt Crawl-delay if higher).
+    verify_ssl:
+        Whether to verify TLS certificates.
+    js_mode:
+        When ``True``, use Scrapling's DynamicFetcher (full Playwright rendering)
+        instead of plain requests. Required for JS-heavy pages that do not expose
+        their content in static HTML. Ignored if Scrapling is not installed.
     """
 
-    def __init__(self, base_url: str, delay: float = 0.5, verify_ssl: bool = False):
+    def __init__(
+        self,
+        base_url: str,
+        delay: float = 0.5,
+        verify_ssl: bool = False,
+        js_mode: bool = False,
+    ):
         super().__init__(base_url, delay=delay, verify_ssl=verify_ssl)
+        self._js_mode: bool = js_mode and HAS_SCRAPLING
+        if js_mode and not HAS_SCRAPLING:
+            logger.warning(
+                "js_mode=True requested for %s but Scrapling is not installed — "
+                "falling back to plain requests",
+                base_url,
+            )
         self.discovered_urls: Set[str] = set()
         self.visited_urls: Set[str] = set()
         self._robots_crawl_delay: Optional[float] = None
@@ -80,6 +107,18 @@ class DiscoveryMiner(ScraperBase):
             ".exe",
             ".apk",
         }
+
+    def _fetch_url(self, url: str):
+        """Fetch *url* and return a BeautifulSoup, routing through DynamicFetcher
+        when ``js_mode`` is active, otherwise using the base :meth:`fetch_page`.
+        """
+        if self._js_mode:
+            raw = dynamic_fetch(url)
+            if raw:
+                from bs4 import BeautifulSoup
+                return BeautifulSoup(raw, "html.parser")
+            return None
+        return self.fetch_page(url)
 
     def discover_all(self, max_pages: int = 200, batch_size: int = 50):
         """Run all discovery methods and yield URLs in batches."""
@@ -289,7 +328,7 @@ class DiscoveryMiner(ScraperBase):
     def discover_from_feeds(self) -> Set[str]:
         """Look for RSS/Atom feeds in the homepage <head> and parse them."""
         urls: Set[str] = set()
-        soup = self.fetch_page(self.base_url)
+        soup = self._fetch_url(self.base_url)
         if not soup:
             return urls
 
@@ -365,7 +404,7 @@ class DiscoveryMiner(ScraperBase):
     def discover_from_navigation(self) -> Set[str]:
         """Extract section/category links from homepage nav elements."""
         urls: Set[str] = set()
-        soup = self.fetch_page(self.base_url)
+        soup = self._fetch_url(self.base_url)
         if not soup:
             return urls
 
@@ -406,7 +445,7 @@ class DiscoveryMiner(ScraperBase):
     def discover_from_homepage_articles(self) -> Set[str]:
         """Extract recent article links from homepage article blocks."""
         urls: Set[str] = set()
-        soup = self.fetch_page(self.base_url)
+        soup = self._fetch_url(self.base_url)
         if not soup:
             return urls
 
@@ -451,7 +490,7 @@ class DiscoveryMiner(ScraperBase):
                 pages_crawled += 1
 
                 try:
-                    soup = self.fetch_page(page_url)
+                    soup = self._fetch_url(page_url)
                     if not soup:
                         continue
 
@@ -493,7 +532,7 @@ class DiscoveryMiner(ScraperBase):
                             if resp.status_code != 200:
                                 break
 
-                            soup = self.fetch_page(page_url)
+                            soup = self._fetch_url(page_url)
                             if not soup:
                                 break
 
@@ -533,7 +572,7 @@ class DiscoveryMiner(ScraperBase):
                     if resp.status_code != 200:
                         continue
 
-                    soup = self.fetch_page(archive_url)
+                    soup = self._fetch_url(archive_url)
                     if not soup:
                         continue
 
@@ -655,7 +694,7 @@ class DiscoveryMiner(ScraperBase):
         urls: Set[str] = set()
         for prefix in candidates:
             listing_url = urljoin(self.base_url, prefix)
-            soup = self.fetch_page(listing_url)
+            soup = self._fetch_url(listing_url)
             if not soup:
                 continue
             urls.update(self._extract_article_links(soup, listing_url))
@@ -682,7 +721,7 @@ class DiscoveryMiner(ScraperBase):
                 continue
             visited.add(url)
 
-            soup = self.fetch_page(url)
+            soup = self._fetch_url(url)
             if not soup:
                 continue
 

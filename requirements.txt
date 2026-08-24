@@ -14,3 +14,4 @@ asyncpg>=0.29
 PyMuPDF>=1.23
 tenacity>=8.2
 httpx>=0.25
+scrapling[fetchers]>=0.3,<0.5

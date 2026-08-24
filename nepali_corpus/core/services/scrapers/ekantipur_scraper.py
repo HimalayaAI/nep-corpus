@@ -34,10 +34,12 @@ try:
     from ...models import RawRecord
     from ...models.news_schemas import EkantipurArticle
     from ...utils.content_types import identify_content_type
+    from ...utils.scrapling_fetcher import HAS_SCRAPLING, is_likely_blocked, stealth_fetch
 except ImportError:  # pragma: no cover
     from nepali_corpus.core.models import RawRecord
     from nepali_corpus.core.models.news_schemas import EkantipurArticle
     from nepali_corpus.core.utils.content_types import identify_content_type
+    from nepali_corpus.core.utils.scrapling_fetcher import HAS_SCRAPLING, is_likely_blocked, stealth_fetch
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -113,14 +115,40 @@ class EkantipurScraper:
             await self._session.close()
 
     async def _fetch(self, url: str) -> Optional[str]:
+        """Fetch a page via aiohttp, falling back to Scrapling's StealthFetcher
+        when the response looks bot-blocked (very short or Cloudflare challenge).
+        """
         async with self._sem:
             await asyncio.sleep(self.delay)
+            html: Optional[str] = None
             try:
                 async with self._session.get(url) as r:
-                    return await r.text() if r.status == 200 else None
+                    if r.status == 200:
+                        html = await r.text()
             except Exception as e:
                 logger.error(f"Error fetching {url}: {e}")
-                return None
+
+            # ── Stealth fallback ──────────────────────────────────────────
+            # Ekantipur returns a short Cloudflare challenge page to bots.
+            # When that happens, retry once with StealthFetcher.
+            if HAS_SCRAPLING and is_likely_blocked(html):
+                logger.info("aiohttp result looks bot-blocked for %s — retrying with StealthFetcher", url)
+                loop = asyncio.get_event_loop()
+                try:
+                    raw_bytes = await loop.run_in_executor(
+                        None, lambda: stealth_fetch(url, timeout=30)
+                    )
+                    if raw_bytes and not is_likely_blocked(raw_bytes):
+                        html = raw_bytes.decode("utf-8", errors="ignore")
+                        logger.info("StealthFetcher succeeded for %s (%d bytes)", url, len(raw_bytes))
+                    else:
+                        logger.warning("StealthFetcher also blocked/failed for %s", url)
+                        html = None
+                except Exception as exc:
+                    logger.error("StealthFetcher error for %s: %s", url, exc)
+                    html = None
+
+            return html
 
     def _parse(self, html: str, source_id: str, source_name: str, province_name: str) -> List[EkantipurArticle]:
         soup = BeautifulSoup(html, "lxml")
