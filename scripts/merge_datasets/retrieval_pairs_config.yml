@@ -1,0 +1,217 @@
+# Sources for himalaya-ai/nepali-embedding-pairs (v0). Only permissive licenses (MIT, Apache-2.0, CC-BY, CC-BY-SA).
+# Each source maps raw columns to (query, positive, negatives) via a transform in retrieval_pairs_to_hf.py.
+# max_rows caps a source so no single domain dominates the mix.
+target_repo: "himalaya-ai/nepali-embedding-pairs"
+private: true
+shard_rows: 100000
+
+filters:
+  min_query_chars: 5
+  min_positive_chars: 10
+  max_query_chars: 1000
+  max_positive_chars: 6000
+  nepali_side: positive        # this side must be mostly Devanagari
+  min_devanagari_ratio: 0.5
+
+# Benchmark test sets: any string found here is removed from training (NEB + Bharat NanoBEIR-ne translations).
+exclude_datasets:
+  - jangedoo/stsb_nepali
+  - jangedoo/sanoir-general
+  - jangedoo/sano-beir
+  - jangedoo/NanoBEIR-ne
+  - jangedoo/nepali-ecommerce-retrieval
+  - jangedoo/nepali-query-passage-hard-negatives-10k
+  - jangedoo/en_ne_parallel_corpus
+  - jangedoo/paraphrase-nepali
+  - carlfeynman/Bharat_NanoMSMARCO_ne
+  - carlfeynman/Bharat_NanoNQ_ne
+  - carlfeynman/Bharat_NanoHotpotQA_ne
+  - carlfeynman/Bharat_NanoFiQA2018_ne
+  - carlfeynman/Bharat_NanoSciFact_ne
+  - carlfeynman/Bharat_NanoQuoraRetrieval_ne
+  - carlfeynman/Bharat_NanoArguAna_ne
+  - carlfeynman/Bharat_NanoNFCorpus_ne
+  - carlfeynman/Bharat_NanoSCIDOCS_ne
+  - carlfeynman/Bharat_NanoFEVER_ne
+  - carlfeynman/Bharat_NanoClimateFEVER_ne
+  - carlfeynman/Bharat_NanoDBPedia_ne
+  - carlfeynman/Bharat_NanoTouche2020_ne
+
+sources:
+  # ---------------- QA -> passage / answer
+  - name: ai4bharat/Indic-Rag-Suite
+    repo: ai4bharat/Indic-Rag-Suite
+    parquet_file: data/ne_data.parquet
+    transform: pair
+    fields: {query: question, positive: paragraph}
+    task_type: qa
+    origin: synthetic
+    license: mit
+    max_rows: 400000
+
+  - name: suban244/squad_v1.1_np
+    repo: suban244/squad_v1.1_np
+    config: ne
+    transform: pair
+    fields: {query: question, positive: context}
+    task_type: qa
+    origin: translated
+    license: apache-2.0
+
+  - name: Bibek1129/nepali_SQuAD
+    repo: Bibek1129/nepali_SQuAD
+    transform: squad_nested
+    fields: {context: context, qas: qas}
+    task_type: qa
+    origin: translated
+    license: cc-by-4.0
+
+  - name: chhatramani/Nepali_Legal_QA
+    repo: chhatramani/Nepali_Legal_QA
+    transform: pair
+    fields: {query: instruction, positive: output}
+    task_type: qa
+    origin: unknown
+    license: cc-by-sa-4.0
+
+  - name: Jiban4/Nepali_Law_QA_Dataset
+    repo: Jiban4/Nepali_Law_QA_Dataset
+    transform: pair
+    fields: {query: "निर्देशन", positive: "प्रतिक्रिया"}
+    task_type: qa
+    origin: unknown
+    license: apache-2.0
+
+  - name: Chhabi/Nepali-Agriculture-QA
+    repo: Chhabi/Nepali-Agriculture-QA
+    transform: pair
+    fields: {query: question, positive: answer}
+    task_type: qa
+    origin: unknown
+    license: apache-2.0
+
+  - name: NepaliAI/Nepali-HealthChat
+    repo: NepaliAI/Nepali-HealthChat
+    transform: pair
+    fields: {query: Question, positive: Answer}
+    task_type: qa
+    origin: translated
+    license: apache-2.0
+
+  - name: Chhabi/Nepali-Health-QA
+    repo: Chhabi/Nepali-Health-QA
+    transform: pair
+    fields: {query: Translated_Context, positive: Translated_Response}
+    task_type: qa
+    origin: translated
+    license: apache-2.0
+
+  - name: dineshkarki/textbooks-qa-nepali
+    repo: dineshkarki/textbooks-qa-nepali
+    transform: sharegpt
+    fields: {conversations: conversations, context: context_text}
+    task_type: qa
+    origin: synthetic
+    license: apache-2.0
+
+  - name: kshitizgajurel/Customer-Care-Devanagari
+    repo: kshitizgajurel/Customer-Care-Services-Dataset-in-Nepali
+    config: Devanagari
+    transform: pair
+    fields: {query: query, positive: response}
+    task_type: qa
+    origin: unknown
+    license: apache-2.0
+
+  - name: kshitizgajurel/Customer-Care-Romanized
+    repo: kshitizgajurel/Customer-Care-Services-Dataset-in-Nepali
+    config: Romanized
+    transform: pair
+    fields: {query: query, positive: response}
+    task_type: qa
+    origin: unknown
+    license: apache-2.0
+    filters: {nepali_side: null}
+
+  - name: sabin1234/NEPSE_Dividend_FAQ_Romanized
+    repo: sabin1234/NEPSE_Dividend_FAQ_Dataset_Romanized_Nepali_Questions
+    transform: sharegpt
+    fields: {conversations: conversations}
+    task_type: qa
+    origin: unknown
+    license: apache-2.0
+    filters: {nepali_side: null}
+
+  # ---------------- title / summary -> body
+  - name: voidash/previllage-nepal-gov-corpus
+    repo: voidash/previllage-nepal-gov-corpus
+    config: chunks
+    transform: pair
+    fields: {query: title, positive: text}
+    task_type: title_body
+    origin: human
+    license: cc-by-4.0
+    max_rows: 150000
+
+  - name: realsanjeev/nepali-summarization-dataset
+    repo: realsanjeev/nepali-summarization-dataset
+    transform: pair
+    fields: {query: title, positive: article}
+    task_type: title_body
+    origin: human
+    license: mit
+    max_rows: 150000
+
+  - name: iamsubingyawali/nepali_news_text_summary
+    repo: iamsubingyawali/nepali_news_text_summary
+    transform: pair
+    fields: {query: summary, positive: text}
+    task_type: summary_text
+    origin: human
+    license: apache-2.0
+
+  # ---------------- NLI / paraphrase triplets
+  - name: jangedoo/nepali-nli-triplets
+    repo: jangedoo/nepali-nli-triplets
+    transform: pair
+    fields: {query: anchor, positive: positive, negatives: [negative]}
+    task_type: nli
+    origin: translated
+    license: mit
+
+  - name: jangedoo/nepali-triplets
+    repo: jangedoo/nepali-triplets
+    transform: pair
+    fields: {query: sentence, positive: positive_sentence, negatives: [negative_sentence]}
+    task_type: paraphrase
+    origin: unknown
+    license: mit
+
+  # ---------------- instruction -> preferred response (weak, capped)
+  - name: Saugatkafley/okapi-ranking
+    repo: Saugatkafley/okapi-ranking
+    transform: pair
+    fields: {query: prompt, positive: chosen, negatives: [rejected]}
+    task_type: instruction
+    origin: translated
+    license: mit
+    max_rows: 50000
+
+  # ---------------- bitext EN -> NE (capped; OPUS added in v1 with LaBSE filtering)
+  - name: Titung/nepali-english-parallel
+    repo: Titung/nepali-english-parallel
+    transform: pair
+    fields: {query: en, positive: ne}
+    task_type: bitext
+    origin: human
+    license: apache-2.0
+    max_rows: 50000
+
+  - name: momo22/eng2nep
+    repo: momo22/eng2nep
+    transform: pair
+    fields: {query: English, positive: Nepali}
+    task_type: bitext
+    origin: unknown
+    license: mit
+    max_rows: 50000
